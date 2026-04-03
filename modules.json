@@ -1,0 +1,511 @@
+{
+  "modules": [
+    {
+      "id": "industream-core",
+      "name": "Industream core",
+      "category": "Platform",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "flowmaker-scheduler",
+      "stackFile": "docker-stack.flowmaker.yml",
+      "imagePattern": "flowmaker.core/flowmaker-launcher"
+    },
+    {
+      "id": "ui-fusion",
+      "name": "UI Fusion",
+      "category": "Platform",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "uifusion",
+      "stackFile": "docker-stack.yml",
+      "imagePattern": "uifusion/ui"
+    },
+    {
+      "id": "uifusion-api",
+      "name": "UI Fusion API",
+      "category": "Platform",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "uifusion-api",
+      "stackFile": "docker-stack.yml",
+      "imagePattern": "uifusion/api"
+    },
+    {
+      "id": "user-tenant-management",
+      "name": "User & tenant management",
+      "category": "Platform",
+      "license": "proprietary",
+      "status": "ready",
+      "serviceName": "keycloak",
+      "stackFile": "docker-stack.yml",
+      "imagePattern": "keycloak/keycloak"
+    },
+    {
+      "id": "dashboard-alerting",
+      "name": "Dashboard & alerting framework",
+      "category": "Platform",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "grafana",
+      "stackFile": "docker-stack.monitoring.yml",
+      "imagePattern": "grafana/grafana-industream"
+    },
+    {
+      "id": "postgres",
+      "name": "PostgreSQL database",
+      "category": "Platform",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "postgres",
+      "stackFile": "docker-stack.yml",
+      "imagePattern": "postgres"
+    },
+    {
+      "id": "traefik",
+      "name": "Traefik reverse proxy",
+      "category": "Platform",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "traefik",
+      "stackFile": "docker-stack.traefik.yml",
+      "imagePattern": "traefik"
+    },
+    {
+      "id": "minio",
+      "name": "MinIO object storage",
+      "category": "Platform",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "minio",
+      "stackFile": "docker-stack.yml",
+      "imagePattern": "minio/minio"
+    },
+    {
+      "id": "cloudbeaver",
+      "name": "CloudBeaver database admin",
+      "category": "Platform",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "cloudbeaver",
+      "stackFile": "docker-stack.yml",
+      "imagePattern": "dbeaver/cloudbeaver"
+    },
+    {
+      "id": "flowmaker-core-engine",
+      "name": "FlowMaker core engine",
+      "category": "FlowMaker",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "flowmaker-scheduler",
+      "stackFile": "docker-stack.flowmaker.yml",
+      "imagePattern": "flowmaker.core/flowmaker-launcher"
+    },
+    {
+      "id": "flowmaker-designer",
+      "name": "FlowMaker Designer",
+      "category": "FlowMaker",
+      "license": "proprietary",
+      "status": "ready",
+      "serviceName": "flowmaker-frontend",
+      "stackFile": "docker-stack.flowmaker.yml",
+      "imagePattern": "flowmaker.core/flowmaker-front"
+    },
+    {
+      "id": "flowmaker-confighub",
+      "name": "FlowMaker ConfigHub",
+      "category": "FlowMaker",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "flowmaker-confighub",
+      "stackFile": "docker-stack.flowmaker.yml",
+      "imagePattern": "flowmaker.core/flowmaker-confighub-v2"
+    },
+    {
+      "id": "flowmaker-logging",
+      "name": "FlowMaker Logging",
+      "category": "FlowMaker",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "flowmaker-logging",
+      "stackFile": "docker-stack.flowmaker.yml",
+      "imagePattern": "flowmaker.core/flowmaker-logger"
+    },
+    {
+      "id": "worker-manager",
+      "name": "Worker Manager",
+      "category": "FlowMaker",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-manager",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.infra/flowmaker-worker-manager"
+    },
+    {
+      "id": "cdn-server",
+      "name": "CDN Server (Verdaccio)",
+      "category": "FlowMaker",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "cdn-server",
+      "stackFile": "docker-stack.cdn.yml",
+      "imagePattern": "flowmaker.core/cdn-server"
+    },
+    {
+      "id": "cdn-cache",
+      "name": "CDN Cache (ESM.sh)",
+      "category": "FlowMaker",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "cdn-cache",
+      "stackFile": "docker-stack.cdn.yml",
+      "imagePattern": "flowmaker.core/cdn-cache"
+    },
+    {
+      "id": "databridge-core",
+      "name": "DataBridge core",
+      "category": "DataBridge",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "databridge",
+      "stackFile": "docker-stack.data.yml",
+      "imagePattern": "timeseries/api"
+    },
+    {
+      "id": "influxdb-connector",
+      "name": "InfluxDB connector",
+      "category": "DataBridge",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "influxdb",
+      "stackFile": "docker-stack.data.yml",
+      "imagePattern": "influxdb"
+    },
+    {
+      "id": "timescaledb-connector",
+      "name": "TimescaleDB connector",
+      "category": "DataBridge",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "timescaledb",
+      "stackFile": "docker-stack.data.yml",
+      "imagePattern": "timescale/timescaledb"
+    },
+    {
+      "id": "postgresql-connector",
+      "name": "PostgreSQL connector",
+      "category": "DataBridge",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "databridge-postgresql",
+      "stackFile": "docker-stack.data.yml",
+      "imagePattern": "timeseries/api"
+    },
+    {
+      "id": "databridge-timescaledb",
+      "name": "DataBridge TimescaleDB API",
+      "category": "DataBridge",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "databridge-timescaledb",
+      "stackFile": "docker-stack.data.yml",
+      "imagePattern": "timeseries/api"
+    },
+    {
+      "id": "mqtt-connector",
+      "name": "MQTT connector",
+      "category": "DataBridge",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-mqtt-client",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-mqtt-client"
+    },
+    {
+      "id": "modbus-tcp-connector",
+      "name": "Modbus TCP connector",
+      "category": "DataBridge",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-modbus-tcp",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-modbus-tcp"
+    },
+    {
+      "id": "rest-api-connector",
+      "name": "REST API connector",
+      "category": "DataBridge",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-http-client",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-http"
+    },
+    {
+      "id": "opc-ua-connector",
+      "name": "OPC-UA connector",
+      "category": "DataBridge",
+      "license": "proprietary",
+      "status": "ready",
+      "serviceName": "worker-opc-ua-client",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-opc-ua-client"
+    },
+    {
+      "id": "rtsp-connector",
+      "name": "RTSP connector",
+      "category": "DataBridge",
+      "license": "proprietary",
+      "status": "ready",
+      "serviceName": "worker-rtsp-client",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-rtsp-client"
+    },
+    {
+      "id": "minio-connector",
+      "name": "MinIO connector",
+      "category": "DataBridge",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-minio-sink",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-minio-sink"
+    },
+    {
+      "id": "datacatalog-core",
+      "name": "AssetCatalog core",
+      "category": "DataCatalog",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "datacatalog-api",
+      "stackFile": "docker-stack.data.yml",
+      "imagePattern": "datacatalog/api"
+    },
+    {
+      "id": "datacatalog-ui",
+      "name": "AssetCatalog UI",
+      "category": "DataCatalog",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "datacatalog-ui",
+      "stackFile": "docker-stack.data.yml",
+      "imagePattern": "datacatalog/ui"
+    },
+    {
+      "id": "datacatalog-mapper",
+      "name": "DataCatalog Mapper worker",
+      "category": "DataCatalog",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-datacatalog-mapper",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-datacatalog-mapper"
+    },
+    {
+      "id": "worker-data-logger",
+      "name": "DataBridge Source worker",
+      "category": "Workers",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-data-logger",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-data-logger"
+    },
+    {
+      "id": "worker-timer",
+      "name": "Timer worker",
+      "category": "Workers",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-timer",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-timer"
+    },
+    {
+      "id": "worker-js-expression",
+      "name": "JS Expression worker",
+      "category": "Workers",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-js-expression",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-js-expression"
+    },
+    {
+      "id": "worker-postgres-client",
+      "name": "PostgreSQL client worker",
+      "category": "Workers",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-postgres-client",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-postgres-client"
+    },
+    {
+      "id": "worker-timeseries",
+      "name": "Timeseries worker",
+      "category": "Workers",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-timeseries",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-timeseries-workers"
+    },
+    {
+      "id": "worker-influx-client",
+      "name": "InfluxDB client worker",
+      "category": "Workers",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-influx-client-dc",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-influx-client"
+    },
+    {
+      "id": "worker-notifications",
+      "name": "Notification worker",
+      "category": "Workers",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-notifications",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-notification"
+    },
+    {
+      "id": "worker-test-data-generator",
+      "name": "Test data generator worker",
+      "category": "Workers",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-test-data-generator",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-test-data-generator"
+    },
+    {
+      "id": "worker-conditional-validator",
+      "name": "Conditional dataset validator worker",
+      "category": "Workers",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-conditional-validator",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-conditional-dataset-validator"
+    },
+    {
+      "id": "worker-enqueue",
+      "name": "Enqueue worker",
+      "category": "Workers",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "worker-enqueue",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-enqueue"
+    },
+    {
+      "id": "equation-solver",
+      "name": "Equation Solver (Simplex)",
+      "category": "Workers",
+      "license": "proprietary",
+      "status": "ready",
+      "serviceName": "equation-solver",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-equation-solver"
+    },
+    {
+      "id": "worker-luminosity-box",
+      "name": "Luminosity box worker",
+      "category": "Workers",
+      "license": "proprietary",
+      "status": "ready",
+      "serviceName": "worker-luminosity-box",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-luminosity-box"
+    },
+    {
+      "id": "prometheus",
+      "name": "Prometheus monitoring",
+      "category": "Monitoring",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "prometheus",
+      "stackFile": "docker-stack.monitoring.yml",
+      "imagePattern": "prom/prometheus"
+    },
+    {
+      "id": "alertmanager",
+      "name": "Alertmanager",
+      "category": "Monitoring",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "alertmanager",
+      "stackFile": "docker-stack.monitoring.yml",
+      "imagePattern": "prom/alertmanager"
+    },
+    {
+      "id": "node-exporter",
+      "name": "Node Exporter",
+      "category": "Monitoring",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "node-exporter",
+      "stackFile": "docker-stack.monitoring.yml",
+      "imagePattern": "prom/node-exporter"
+    },
+    {
+      "id": "cadvisor",
+      "name": "cAdvisor",
+      "category": "Monitoring",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "cadvisor",
+      "stackFile": "docker-stack.monitoring.yml",
+      "imagePattern": "monitoring/cadvisor"
+    },
+    {
+      "id": "postgres-exporter",
+      "name": "PostgreSQL Exporter",
+      "category": "Monitoring",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "postgres-exporter",
+      "stackFile": "docker-stack.monitoring.yml",
+      "imagePattern": "prometheuscommunity/postgres-exporter"
+    },
+    {
+      "id": "ntfy",
+      "name": "Ntfy push notifications",
+      "category": "Monitoring",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "ntfy",
+      "stackFile": "docker-stack.monitoring.yml",
+      "imagePattern": "binwiederhier/ntfy"
+    },
+    {
+      "id": "backup-monitor",
+      "name": "Backup Monitor",
+      "category": "Backup",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "backup-monitor",
+      "stackFile": "docker-stack.backup.yml",
+      "imagePattern": "flowmaker.infra/backup-monitor"
+    },
+    {
+      "id": "swarm-cronjob",
+      "name": "Backup scheduler",
+      "category": "Backup",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "swarm-cronjob",
+      "stackFile": "docker-stack.backup.yml",
+      "imagePattern": "crazymax/swarm-cronjob"
+    },
+    {
+      "id": "grafana-databridge",
+      "name": "Industream for Grafana",
+      "category": "Ecosystem",
+      "license": "apache",
+      "status": "ready"
+    }
+  ]
+}
