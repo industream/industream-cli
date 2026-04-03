@@ -78,9 +78,13 @@ if command -v docker &> /dev/null && docker info &> /dev/null; then
   echo -e "  ${GREEN}✓${NC} Docker $(docker --version | awk '{print $3}' | tr -d ',')"
 else
   if command -v docker &> /dev/null; then
-    echo -e "  ${YELLOW}Docker installed but not running or no permission${NC}"
-    echo -e "  ${DIM}Try: sudo systemctl start docker && sudo usermod -aG docker \$USER${NC}"
-    exit 1
+    # Docker exists but current user can't access it
+    echo -e "  ${YELLOW}Docker installed but not accessible, fixing...${NC}"
+    sudo systemctl enable --now docker 2>/dev/null || true
+    sudo usermod -aG docker "$USER"
+    echo -e "  ${DIM}Activating docker group for current session...${NC}"
+    SCRIPT_URL="https://raw.githubusercontent.com/industream/industream-cli/main/install.sh"
+    exec sg docker -c "curl -fsSL $SCRIPT_URL | bash"
   fi
   echo -e "  ${YELLOW}Installing Docker...${NC}"
   curl -fsSL https://get.docker.com | sh
