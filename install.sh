@@ -137,7 +137,41 @@ else
 fi
 
 # =============================================================================
-# Step 5: Install Industream CLI
+# Step 5: Docker Registry Login
+# =============================================================================
+REGISTRY="842775dh.c1.gra9.container-registry.ovh.net"
+if docker pull "$REGISTRY/uifusion/ui:latest" > /dev/null 2>&1; then
+  echo -e "  ${GREEN}✓${NC} Registry authenticated"
+else
+  echo ""
+  echo -e "  ${CYAN}Bolt:${NC} ${DIM}\"I need your registry credentials to pull images.\"${NC}"
+  echo ""
+  echo -e "  Registry: ${BOLD}${REGISTRY}${NC}"
+  echo ""
+  printf "  Username: "
+  read -r REGISTRY_USER </dev/tty
+  printf "  Password: "
+  stty -echo 2>/dev/null
+  read -r REGISTRY_PASSWORD </dev/tty
+  stty echo 2>/dev/null
+  echo ""
+  echo ""
+
+  if [ -z "$REGISTRY_USER" ] || [ -z "$REGISTRY_PASSWORD" ]; then
+    echo -e "  ${RED}Username and password are required${NC}"
+    exit 1
+  fi
+
+  if echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin > /dev/null 2>&1; then
+    echo -e "  ${GREEN}✓${NC} Registry: authenticated"
+  else
+    echo -e "  ${RED}Registry login failed. Check your credentials.${NC}"
+    exit 1
+  fi
+fi
+
+# =============================================================================
+# Step 6: Install Industream CLI
 # =============================================================================
 echo ""
 CLI_DIR="${HOME}/.local/share/industream/cli"
@@ -175,10 +209,14 @@ echo -e "${GREEN}           │ │${NC}"
 echo -e "${GREEN}          ─┘ └─${NC}"
 echo ""
 echo -e "${GREEN}${BOLD}  All prerequisites installed!${NC}"
-echo -e "${DIM}  Launching the platform setup wizard...${NC}"
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-
-# Launch interactive menu (TTY is preserved with bash <(curl ...) syntax)
-exec industream
+echo -e "  ${YELLOW}${BOLD}Next step:${NC}"
+echo ""
+echo -e "  Close this session and reconnect, then type:"
+echo ""
+echo -e "    ${BOLD}industream${NC}"
+echo ""
+echo -e "  This will open the interactive platform manager."
+echo ""
