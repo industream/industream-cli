@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { render, Text, Box, useApp } from "ink";
 import { BoltAnimated } from "../components/BoltAnimated.js";
 import { Banner } from "../components/Banner.js";
+import { ModuleSelector } from "../components/ModuleSelector.js";
 import { saveConfig } from "../lib/config.js";
 import { isDockerAvailable, isSwarmActive } from "../lib/docker.js";
 import {
@@ -12,6 +13,7 @@ import {
 } from "../lib/swarm-repo.js";
 import { loadLicenseFromDisk, validateLicense } from "../lib/license.js";
 import { loadModuleRegistry, getModulesByLicense } from "../lib/modules.js";
+import type { Module, Plan } from "../lib/modules.js";
 import { execa } from "execa";
 import { join } from "node:path";
 
@@ -104,6 +106,8 @@ function InstallWizard(): React.ReactElement {
   const [progressLine, setProgressLine] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [modulesSummary, setModulesSummary] = useState("");
+  const [allModules, setAllModules] = useState<Module[]>([]);
+  const [currentPlan, setCurrentPlan] = useState<Plan>("community");
   const platformDirectory = "~/industream-platform";
 
   useEffect(() => {
@@ -151,6 +155,8 @@ function InstallWizard(): React.ReactElement {
         const totalCount = communityCount + premiumCount;
 
         const plan = licenseResult.payload?.plan ?? "community";
+        setAllModules(moduleRegistry.modules);
+        setCurrentPlan(plan as Plan);
         const isLicensed = licenseResult.isValid && plan !== "community";
 
         if (isLicensed) {
@@ -292,6 +298,11 @@ function InstallWizard(): React.ReactElement {
           <Text color="blue">{statusMessage}</Text>
           {progressLine.length > 0 && (
             <Text dimColor>  {progressLine}</Text>
+          )}
+          {step === "modules" && allModules.length > 0 && (
+            <Box marginTop={1}>
+              <ModuleSelector modules={allModules} plan={currentPlan} />
+            </Box>
           )}
         </Box>
       )}

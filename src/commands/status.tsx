@@ -61,6 +61,49 @@ function StatusDashboard(): React.ReactElement {
   );
 }
 
+async function runFallbackStatus(): Promise<void> {
+  console.log("");
+  console.log("  \x1b[1mINDUSTREAM PLATFORM - STATUS\x1b[0m");
+  console.log("");
+
+  try {
+    const config = await loadConfig();
+    const stackName = `industream-${config.defaultEnvironment}`;
+    const active = await isSwarmActive();
+
+    if (!active) {
+      console.log("  \x1b[31mDocker Swarm is not active. Run: docker swarm init\x1b[0m");
+      console.log("");
+      return;
+    }
+
+    const services = await getSwarmServices(stackName);
+    const running = services.filter((s) => s.isRunning).length;
+
+    console.log("  \x1b[1mServices\x1b[0m");
+    for (const service of services) {
+      const statusIcon = service.isRunning ? "\x1b[32m✓\x1b[0m" : "\x1b[31m✗\x1b[0m";
+      console.log(
+        `    ${statusIcon} ${service.name.padEnd(30)} ${service.replicas.padEnd(10)} ${service.version}`,
+      );
+    }
+
+    console.log("");
+    console.log(`  \x1b[2m${running}/${services.length} services running\x1b[0m`);
+    console.log("");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to get status";
+    console.log(`  \x1b[31m${message}\x1b[0m`);
+    console.log("");
+  }
+}
+
 export function runStatus(): void {
-  render(<StatusDashboard />);
+  // Check if raw mode is supported (TTY with interactive terminal)
+  if (process.stdin.isTTY && typeof process.stdin.setRawMode === "function") {
+    render(<StatusDashboard />);
+  } else {
+    // Fallback to simple console output (works in non-interactive environments)
+    runFallbackStatus();
+  }
 }

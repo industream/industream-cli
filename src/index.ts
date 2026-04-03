@@ -34,8 +34,9 @@ program
   .description("Deploy an environment")
   .option("--env <environment>", "Environment to deploy (prod, dev, staging)")
   .option("--with-demo", "Include demo simulators")
+  .option("-y, --yes", "Skip interactive prompts")
   .action((options) => {
-    runDeploy(options.env, { withDemo: options.withDemo });
+    runDeploy(options.env, { withDemo: options.withDemo, yes: options.yes });
   });
 
 program

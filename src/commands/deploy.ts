@@ -8,7 +8,7 @@ export type Environment = "prod" | "dev" | "staging";
 
 export async function runDeploy(
   environment?: string,
-  options?: { withDemo?: boolean },
+  options?: { withDemo?: boolean; yes?: boolean },
 ): Promise<void> {
   const config = await loadConfig();
   const env = environment ?? config.defaultEnvironment;
@@ -28,8 +28,20 @@ export async function runDeploy(
 
   const scriptPath = join(platformDir, "scripts", "deploy-swarm.sh");
 
-  await execa(scriptPath, args, {
-    cwd: platformDir,
-    stdio: "inherit",
-  });
+  if (options?.yes) {
+    const deployProcess = execa(scriptPath, args, {
+      cwd: platformDir,
+      stdout: "pipe",
+      stderr: "pipe",
+      stdin: "pipe",
+    });
+    deployProcess.stdin?.write("y\ny\ny\ny\n");
+    deployProcess.stdin?.end();
+    await deployProcess;
+  } else {
+    await execa(scriptPath, args, {
+      cwd: platformDir,
+      stdio: "inherit",
+    });
+  }
 }
