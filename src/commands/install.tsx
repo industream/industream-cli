@@ -130,6 +130,21 @@ function InstallWizard(): React.ReactElement {
         // Step 3: Setup
         setStep("setup");
 
+        // Check Docker registry login
+        setStatusMessage("Checking registry access...");
+        setProgressLine("");
+        const registry = "842775dh.c1.gra9.container-registry.ovh.net";
+        const { stdout: authConfig } = await execa("docker", ["system", "info", "--format", "{{json .RegistryConfig}}"]).catch(() => ({ stdout: "" }));
+        const isLoggedIn = authConfig.includes(registry) ||
+          (await execa("cat", [`${process.env.HOME}/.docker/config.json`]).then(
+            (r) => r.stdout.includes(registry),
+          ).catch(() => false));
+        if (!isLoggedIn) {
+          throw new Error(
+            `Not logged in to Docker registry.\nRun first: docker login ${registry}\nThen re-run: industream install`,
+          );
+        }
+
         setStatusMessage("Deploying Traefik...");
         setProgressLine("");
         await runScript(
