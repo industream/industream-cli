@@ -10,12 +10,15 @@ import {
   loadEnvFile,
   resolvePlatformDir,
 } from "../lib/swarm-repo.js";
+import { loadLicenseFromDisk, validateLicense } from "../lib/license.js";
+import { loadModuleRegistry, getModulesByLicense } from "../lib/modules.js";
 import { execa } from "execa";
 import { join } from "node:path";
 
 type Step =
   | "prerequisites"
   | "clone"
+  | "modules"
   | "setup"
   | "done"
   | "error";
@@ -30,6 +33,10 @@ const BOLT_MESSAGES: Record<Step, string[]> = {
     "Downloading the good stuff...",
     "Grabbing the latest recipes from HQ...",
     "Almost there, just fetching a few things...",
+  ],
+  modules: [
+    "Checking your module lineup...",
+    "Let's see what you've got...",
   ],
   setup: [
     "Setting everything up, hang tight!",
@@ -96,6 +103,7 @@ function InstallWizard(): React.ReactElement {
   const [statusMessage, setStatusMessage] = useState("Checking prerequisites...");
   const [progressLine, setProgressLine] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [modulesSummary, setModulesSummary] = useState("");
   const platformDirectory = "~/industream-platform";
 
   useEffect(() => {
@@ -127,21 +135,55 @@ function InstallWizard(): React.ReactElement {
           await cloneSwarmRepo(platformDirectory);
         }
 
-        // Step 3: Setup
+        // Step 3: Modules
+        setStep("modules");
+        setProgressLine("");
+        setStatusMessage("Analyzing modules...");
+
+        const licenseToken = await loadLicenseFromDisk();
+        const licenseResult = await validateLicense(licenseToken);
+        const moduleRegistry = loadModuleRegistry();
+        const bslModules = getModulesByLicense(moduleRegistry, "bsl");
+        const apacheModules = getModulesByLicense(moduleRegistry, "apache");
+        const proprietaryModules = getModulesByLicense(moduleRegistry, "proprietary");
+        const communityCount = bslModules.length + apacheModules.length;
+        const premiumCount = proprietaryModules.length;
+        const totalCount = communityCount + premiumCount;
+
+        const plan = licenseResult.payload?.plan ?? "community";
+        const isLicensed = licenseResult.isValid && plan !== "community";
+
+        if (isLicensed) {
+          const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+          setStatusMessage(`Deploying all ${totalCount} modules (${planLabel} license)`);
+          setModulesSummary(`${totalCount} modules deployed.`);
+        } else {
+          setStatusMessage(
+            `Deploying ${communityCount} community modules (${premiumCount} premium modules available with license)`,
+          );
+          setModulesSummary(
+            `${communityCount} modules deployed. ${premiumCount} premium modules available with a license.`,
+          );
+        }
+
+        // Brief pause so user can read the module summary
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        // Step 4: Setup
         setStep("setup");
 
         // Check Docker registry login
         setStatusMessage("Checking registry access...");
         setProgressLine("");
-        const registry = "842775dh.c1.gra9.container-registry.ovh.net";
+        const dockerRegistry = "842775dh.c1.gra9.container-registry.ovh.net";
         const { stdout: authConfig } = await execa("docker", ["system", "info", "--format", "{{json .RegistryConfig}}"]).catch(() => ({ stdout: "" }));
-        const isLoggedIn = authConfig.includes(registry) ||
+        const isLoggedIn = authConfig.includes(dockerRegistry) ||
           (await execa("cat", [`${process.env.HOME}/.docker/config.json`]).then(
-            (r) => r.stdout.includes(registry),
+            (r) => r.stdout.includes(dockerRegistry),
           ).catch(() => false));
         if (!isLoggedIn) {
           throw new Error(
-            `Not logged in to Docker registry.\nRun first: docker login ${registry}\nThen re-run: industream install`,
+            `Not logged in to Docker registry.\nRun first: docker login ${dockerRegistry}\nThen re-run: industream install`,
           );
         }
 
@@ -239,6 +281,9 @@ function InstallWizard(): React.ReactElement {
           <Text color="green" bold>
             Installation complete!
           </Text>
+          {modulesSummary.length > 0 && (
+            <Text dimColor>{modulesSummary}</Text>
+          )}
           <Text dimColor>Run `industream status` to check your platform.</Text>
         </Box>
       )}
