@@ -64,15 +64,25 @@ PKG_MANAGER=$(detect_package_manager)
 if command -v git &> /dev/null; then
   echo -e "  ${GREEN}✓${NC} Git $(git --version | awk '{print $3}')"
 else
-  echo -e "  ${YELLOW}Installing Git...${NC}"
+  echo -e "  ${YELLOW}Installing Git and tools...${NC}"
   case "$PKG_MANAGER" in
-    apt) sudo apt-get update -qq && sudo apt-get install -y -qq git ;;
-    dnf) sudo dnf install -y -q git ;;
-    yum) sudo yum install -y -q git ;;
+    apt) sudo apt-get update -qq && sudo apt-get install -y -qq git bc jq ;;
+    dnf) sudo dnf install -y -q git bc jq ;;
+    yum) sudo yum install -y -q git bc jq ;;
     *) echo -e "${RED}Cannot install Git automatically. Install it manually.${NC}"; exit 1 ;;
   esac
   echo -e "  ${GREEN}✓${NC} Git installed"
 fi
+
+# Install bc/jq if missing (needed by deploy scripts)
+for tool in bc jq; do
+  if ! command -v "$tool" &> /dev/null; then
+    case "$PKG_MANAGER" in
+      apt) sudo apt-get install -y -qq "$tool" ;;
+      dnf|yum) sudo "$PKG_MANAGER" install -y -q "$tool" ;;
+    esac
+  fi
+done
 
 # =============================================================================
 # Step 2: Docker
