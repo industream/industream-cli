@@ -90,7 +90,7 @@ else
   # Continue the rest of the script with docker group active (no re-login needed)
   echo -e "  ${DIM}Activating docker group for current session...${NC}"
   SCRIPT_URL="https://raw.githubusercontent.com/industream/industream-cli/main/install.sh"
-  exec sg docker -c "bash <(curl -fsSL $SCRIPT_URL)"
+  exec sg docker -c "curl -fsSL $SCRIPT_URL | bash"
 fi
 
 # =============================================================================
