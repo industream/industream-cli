@@ -87,10 +87,10 @@ else
   sudo systemctl enable --now docker
   sudo usermod -aG docker "$USER"
   echo -e "  ${GREEN}✓${NC} Docker installed"
-  echo ""
-  echo -e "  ${YELLOW}NOTE: You were added to the docker group.${NC}"
-  echo -e "  ${YELLOW}Log out and back in, then re-run this script.${NC}"
-  exit 0
+  # Continue the rest of the script with docker group active (no re-login needed)
+  echo -e "  ${DIM}Activating docker group for current session...${NC}"
+  SCRIPT_URL="https://raw.githubusercontent.com/industream/industream-cli/main/install.sh"
+  exec sg docker -c "bash <(curl -fsSL $SCRIPT_URL)"
 fi
 
 # =============================================================================
