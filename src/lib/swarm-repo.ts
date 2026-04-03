@@ -4,7 +4,7 @@ import { readFile, access } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
-const REPO_URL = "https://github.com/industream/industream-swarm.git";
+const REPO_URL = "https://github.com/industream/industream-stack.git";
 
 export function resolvePlatformDir(path: string): string {
   return path.replace(/^~/, homedir());
