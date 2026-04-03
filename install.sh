@@ -2,10 +2,13 @@
 # =============================================================================
 # Industream Platform — One-Line Installer
 # =============================================================================
-# Usage: curl -fsSL https://raw.githubusercontent.com/industream/industream-cli/main/install.sh | bash
+# Usage: bash <(curl -fsSL https://raw.githubusercontent.com/industream/industream-cli/main/install.sh)
+#
+# IMPORTANT: Use bash <(curl ...) NOT curl | bash — this preserves the TTY
+# so the interactive menu works after installation.
 #
 # Installs all prerequisites (Node.js, Docker, Git) then the Industream CLI,
-# and launches the interactive setup wizard.
+# and launches the interactive menu.
 # =============================================================================
 set -e
 
@@ -177,12 +180,5 @@ echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# Launch interactive menu if TTY is available, otherwise show instructions
-if [ -t 0 ] && [ -t 1 ]; then
-  exec industream
-else
-  echo -e "  Run: ${BOLD}industream${NC}         — interactive menu"
-  echo -e "  Run: ${BOLD}industream install${NC}  — set up the platform"
-  echo -e "  Run: ${BOLD}industream --help${NC}   — all commands"
-  echo ""
-fi
+# Launch interactive menu (TTY is preserved with bash <(curl ...) syntax)
+exec industream
