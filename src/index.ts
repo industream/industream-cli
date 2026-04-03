@@ -6,13 +6,18 @@ import { runStop } from "./commands/stop.js";
 import { runLogs } from "./commands/logs.js";
 import { runSecrets } from "./commands/secrets.js";
 import { runInstall } from "./commands/install.js";
+import { runMenu } from "./commands/menu.js";
 
 const program = new Command();
 
 program
   .name("industream")
   .description("Industream Platform CLI")
-  .version("0.1.0");
+  .version("0.1.0")
+  .action(() => {
+    // No subcommand → show interactive menu
+    runMenu();
+  });
 
 program
   .command("status")

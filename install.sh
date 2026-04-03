@@ -177,8 +177,12 @@ echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# Don't auto-launch wizard — it needs interactive TTY
-echo -e "  Run: ${BOLD}industream install${NC}  — to set up the platform"
-echo -e "  Run: ${BOLD}industream status${NC}   — to check platform health"
-echo -e "  Run: ${BOLD}industream --help${NC}   — for all commands"
-echo ""
+# Launch interactive menu if TTY is available, otherwise show instructions
+if [ -t 0 ] && [ -t 1 ]; then
+  exec industream
+else
+  echo -e "  Run: ${BOLD}industream${NC}         — interactive menu"
+  echo -e "  Run: ${BOLD}industream install${NC}  — set up the platform"
+  echo -e "  Run: ${BOLD}industream --help${NC}   — all commands"
+  echo ""
+fi
