@@ -5,6 +5,7 @@ import { runDeploy } from "./commands/deploy.js";
 import { runStop } from "./commands/stop.js";
 import { runLogs } from "./commands/logs.js";
 import { runSecrets } from "./commands/secrets.js";
+import { runInstall } from "./commands/install.js";
 
 const program = new Command();
 
@@ -53,6 +54,13 @@ program
   .option("--regenerate", "Regenerate all secrets")
   .action((options) => {
     runSecrets(options);
+  });
+
+program
+  .command("install")
+  .description("Install the Industream platform")
+  .action(() => {
+    runInstall();
   });
 
 program.parse();
