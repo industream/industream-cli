@@ -177,5 +177,8 @@ echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# Launch the interactive installer
-exec industream install
+# Don't auto-launch wizard — it needs interactive TTY
+echo -e "  Run: ${BOLD}industream install${NC}  — to set up the platform"
+echo -e "  Run: ${BOLD}industream status${NC}   — to check platform health"
+echo -e "  Run: ${BOLD}industream --help${NC}   — for all commands"
+echo ""
