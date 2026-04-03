@@ -69,19 +69,19 @@ function InstallWizard(): React.ReactElement {
         setStatusMessage("Deploying Traefik...");
         await execa(join(resolved, "scripts/deploy-traefik.sh"), [], {
           cwd: resolved,
-          stdio: "inherit",
+          stdio: "pipe",
         });
 
         setStatusMessage("Creating secrets...");
         await execa(join(resolved, "scripts/setup/create-secrets.sh"), ["--env", "prod"], {
           cwd: resolved,
-          stdio: "inherit",
+          stdio: "pipe",
         });
 
         setStatusMessage("Deploying swarm stack...");
         await execa(join(resolved, "scripts/deploy-swarm.sh"), ["--env", "prod"], {
           cwd: resolved,
-          stdio: "inherit",
+          stdio: "pipe",
         });
 
         // Read domain from .env
@@ -94,7 +94,7 @@ function InstallWizard(): React.ReactElement {
           ["--stack", "industream-prod", "--domain", domain],
           {
             cwd: resolved,
-            stdio: "inherit",
+            stdio: "pipe",
           },
         );
 
