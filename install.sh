@@ -3,38 +3,47 @@
 # Usage: curl -fsSL https://raw.githubusercontent.com/industream/industream-cli/main/install.sh | bash
 set -e
 
-REPO="industream/industream-cli"
-INSTALL_DIR="${INDUSTREAM_INSTALL_DIR:-$HOME/.local/bin}"
-SHARE_DIR="${INDUSTREAM_SHARE_DIR:-$HOME/.local/share/industream}"
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
 
-# Detect architecture
-ARCH=$(uname -m)
-case "$ARCH" in
-  x86_64) ARTIFACT="industream-linux-x64" ;;
-  aarch64) ARTIFACT="industream-linux-arm64" ;;
-  *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
-esac
+echo ""
+echo -e "${BLUE}${BOLD}Industream CLI Installer${NC}"
+echo ""
 
-# Get latest release URL
-LATEST=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | grep "browser_download_url.*$ARTIFACT" | head -1 | cut -d'"' -f4)
-
-if [ -z "$LATEST" ]; then
-  echo "Could not find release for $ARTIFACT"
+# Check Node.js
+if ! command -v node &> /dev/null; then
+  echo -e "${RED}Node.js is not installed.${NC}"
+  echo "Install Node.js 22+: https://nodejs.org/"
+  echo "Or: curl -fsSL https://fnm.vercel.app/install | bash && fnm install 22"
   exit 1
 fi
 
-# Download
-echo "Downloading Industream CLI..."
-mkdir -p "$SHARE_DIR/versions"
-VERSION=$(echo "$LATEST" | grep -oP 'v[\d.]+' | head -1)
-BINARY_PATH="$SHARE_DIR/versions/$VERSION"
-curl -fsSL -o "$BINARY_PATH" "$LATEST"
-chmod +x "$BINARY_PATH"
+NODE_VERSION=$(node -v | grep -oP '\d+' | head -1)
+if [ "$NODE_VERSION" -lt 22 ]; then
+  echo -e "${RED}Node.js 22+ required (found: $(node -v))${NC}"
+  exit 1
+fi
 
-# Symlink
-mkdir -p "$INSTALL_DIR"
-ln -sf "$BINARY_PATH" "$INSTALL_DIR/industream"
+echo -e "  ${GREEN}✓${NC} Node.js $(node -v)"
+
+# Install globally via npm
+echo ""
+echo "Installing @industream/cli..."
+npm install -g @industream/cli@latest 2>/dev/null || {
+  echo ""
+  echo -e "${RED}npm global install failed.${NC}"
+  echo "Try with sudo: sudo npm install -g @industream/cli"
+  echo "Or use npx:    npx @industream/cli"
+  exit 1
+}
 
 echo ""
-echo "Industream CLI installed to $INSTALL_DIR/industream"
-echo "Run: industream install"
+echo -e "${GREEN}${BOLD}Industream CLI installed!${NC}"
+echo ""
+echo -e "  Run: ${BOLD}industream install${NC}  — to set up the platform"
+echo -e "  Run: ${BOLD}industream status${NC}   — to check platform health"
+echo -e "  Run: ${BOLD}industream --help${NC}   — for all commands"
+echo ""

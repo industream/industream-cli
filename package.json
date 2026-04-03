@@ -1,17 +1,22 @@
 {
-  "name": "industream-cli",
-  "version": "1.0.0",
-  "description": "",
-  "main": "dist/index.js",
+  "name": "@industream/cli",
+  "version": "0.1.0",
+  "description": "Industream Platform CLI — install, manage and monitor",
+  "main": "dist/index.mjs",
   "bin": {
-    "industream": "./dist/index.js"
+    "industream": "./dist/index.mjs"
   },
+  "files": [
+    "dist/",
+    "modules.json",
+    "keys/public.jwk.json"
+  ],
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "tsc",
+    "build": "bash scripts/build-sea.sh",
+    "prepublishOnly": "npm run build",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "build:sea": "bash scripts/build-sea.sh"
+    "test:watch": "vitest"
   },
   "repository": {
     "type": "git",
@@ -37,6 +42,7 @@
   "devDependencies": {
     "@types/node": "^25.5.2",
     "@types/react": "^19.2.14",
+    "@yao-pkg/pkg": "^6.14.2",
     "esbuild": "^0.27.7",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
