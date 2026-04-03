@@ -1,0 +1,43 @@
+{
+  "name": "industream-cli",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "bin": {
+    "industream": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/industream/industream-cli.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/industream/industream-cli/issues"
+  },
+  "homepage": "https://github.com/industream/industream-cli#readme",
+  "dependencies": {
+    "commander": "^14.0.3",
+    "execa": "^9.6.1",
+    "ink": "^6.8.0",
+    "ink-table": "^3.1.0",
+    "jose": "^6.2.2",
+    "react": "^19.2.4",
+    "semver": "^7.7.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "@types/react": "^19.2.14",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}
