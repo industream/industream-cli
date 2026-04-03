@@ -18,6 +18,9 @@ const MENU_ITEMS: MenuItem[] = [
   { key: "4", label: "Stop", description: "Stop an environment", command: ["stop"] },
   { key: "5", label: "Logs", description: "View service logs", command: ["logs"] },
   { key: "6", label: "Secrets", description: "Manage secrets", command: ["secrets"] },
+  { key: "7", label: "Update", description: "Check for updates", command: ["update"] },
+  { key: "8", label: "License", description: "View license info", command: ["license"] },
+  { key: "9", label: "Uninstall", description: "Remove the platform", command: ["uninstall"] },
 ];
 
 function MainMenu(): React.ReactElement {

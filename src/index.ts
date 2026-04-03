@@ -6,6 +6,9 @@ import { runStop } from "./commands/stop.js";
 import { runLogs } from "./commands/logs.js";
 import { runSecrets } from "./commands/secrets.js";
 import { runInstall } from "./commands/install.js";
+import { runUpdate } from "./commands/update.js";
+import { runLicense } from "./commands/license.js";
+import { runUninstall } from "./commands/uninstall.js";
 import { runMenu } from "./commands/menu.js";
 
 const program = new Command();
@@ -66,6 +69,29 @@ program
   .description("Install the Industream platform")
   .action(() => {
     runInstall();
+  });
+
+program
+  .command("update")
+  .description("Check for available platform updates")
+  .action(() => {
+    runUpdate();
+  });
+
+program
+  .command("license")
+  .description("View or set license information")
+  .option("--set <token>", "Save a new license token")
+  .action((options) => {
+    runLicense({ set: options.set });
+  });
+
+program
+  .command("uninstall")
+  .description("Remove the platform from an environment")
+  .option("--env <environment>", "Environment to uninstall")
+  .action((options) => {
+    runUninstall(options.env);
   });
 
 program.parse();
