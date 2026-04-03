@@ -20,18 +20,81 @@ type Step =
   | "done"
   | "error";
 
-const BOLT_MESSAGES: Record<Step, string> = {
-  prerequisites: "Let me check your system...",
-  clone: "Downloading the good stuff...",
-  setup: "Setting everything up...",
-  done: "Welcome to Industream!",
-  error: "Oops, something went wrong...",
+const BOLT_MESSAGES: Record<Step, string[]> = {
+  prerequisites: [
+    "Let me check your system...",
+    "Hmm, let me see what we're working with...",
+    "Just making sure everything's in order...",
+  ],
+  clone: [
+    "Downloading the good stuff...",
+    "Grabbing the latest recipes from HQ...",
+    "Almost there, just fetching a few things...",
+  ],
+  setup: [
+    "Setting everything up, hang tight!",
+    "Wiring all the things together...",
+    "This is the fun part!",
+    "Pulling images... this might take a minute.",
+    "Still working... good things take time!",
+    "Making your factory smarter, one container at a time...",
+    "If I had fingers, I'd be crossing them...",
+    "Almost there... I think.",
+    "Did you know? Industream can monitor a blast furnace!",
+    "Loading industrial awesomeness...",
+  ],
+  done: [
+    "Welcome to Industream! You're all set!",
+  ],
+  error: [
+    "Oops, something went sideways...",
+  ],
 };
+
+// Run a script and stream last meaningful line to a callback
+async function runScript(
+  scriptPath: string,
+  args: string[],
+  cwd: string,
+  onProgress: (line: string) => void,
+): Promise<void> {
+  const subprocess = execa(scriptPath, args, {
+    cwd,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  subprocess.stdout?.on("data", (data: Buffer) => {
+    const lines = data.toString().split("\n").filter((line) => line.trim().length > 0);
+    const lastLine = lines.at(-1);
+    if (lastLine) {
+      // Strip ANSI color codes for clean display
+      const clean = lastLine.replace(/\x1b\[[0-9;]*m/g, "").trim();
+      if (clean.length > 0) {
+        onProgress(clean.slice(0, 80));
+      }
+    }
+  });
+
+  subprocess.stderr?.on("data", (data: Buffer) => {
+    const lines = data.toString().split("\n").filter((line) => line.trim().length > 0);
+    const lastLine = lines.at(-1);
+    if (lastLine) {
+      const clean = lastLine.replace(/\x1b\[[0-9;]*m/g, "").trim();
+      if (clean.length > 0 && !clean.startsWith("WARNING")) {
+        onProgress(clean.slice(0, 80));
+      }
+    }
+  });
+
+  await subprocess;
+}
 
 function InstallWizard(): React.ReactElement {
   const { exit } = useApp();
   const [step, setStep] = useState<Step>("prerequisites");
   const [statusMessage, setStatusMessage] = useState("Checking prerequisites...");
+  const [progressLine, setProgressLine] = useState("");
   const [error, setError] = useState<string | null>(null);
   const platformDirectory = "~/industream-platform";
 
@@ -54,6 +117,7 @@ function InstallWizard(): React.ReactElement {
 
         // Step 2: Clone repo
         setStep("clone");
+        setProgressLine("");
         setStatusMessage("Downloading platform files...");
         const resolved = resolvePlatformDir(platformDirectory);
         if (await isPlatformInstalled(platformDirectory)) {
@@ -63,48 +127,77 @@ function InstallWizard(): React.ReactElement {
           await cloneSwarmRepo(platformDirectory);
         }
 
-        // Step 3: Setup (Traefik, secrets, swarm deploy, seed)
+        // Step 3: Setup
         setStep("setup");
 
         setStatusMessage("Deploying Traefik...");
-        await execa(join(resolved, "scripts/deploy-traefik.sh"), [], {
-          cwd: resolved,
-          stdio: "pipe",
-        });
+        setProgressLine("");
+        await runScript(
+          join(resolved, "scripts/deploy-traefik.sh"),
+          [],
+          resolved,
+          (line) => setProgressLine(line),
+        );
 
         setStatusMessage("Creating secrets...");
-        await execa(join(resolved, "scripts/setup/create-secrets.sh"), ["--env", "prod"], {
-          cwd: resolved,
-          stdio: "pipe",
-        });
+        setProgressLine("");
+        await runScript(
+          join(resolved, "scripts/setup/create-secrets.sh"),
+          ["--env", "prod"],
+          resolved,
+          (line) => setProgressLine(line),
+        );
 
-        setStatusMessage("Deploying swarm stack...");
-        await execa(join(resolved, "scripts/deploy-swarm.sh"), ["--env", "prod"], {
-          cwd: resolved,
-          stdio: "pipe",
+        setStatusMessage("Deploying platform stack...");
+        setProgressLine("");
+        // Pass "y" to stdin for any interactive prompts (registry login, continue, etc.)
+        const deployProcess = execa(
+          join(resolved, "scripts/deploy-swarm.sh"),
+          ["--env", "prod"],
+          { cwd: resolved, stdout: "pipe", stderr: "pipe", stdin: "pipe" },
+        );
+        deployProcess.stdin?.write("y\ny\ny\ny\n");
+        deployProcess.stdin?.end();
+        deployProcess.stdout?.on("data", (data: Buffer) => {
+          const lines = data.toString().split("\n").filter((l) => l.trim().length > 0);
+          const lastLine = lines.at(-1);
+          if (lastLine) {
+            const clean = lastLine.replace(/\x1b\[[0-9;]*m/g, "").trim();
+            if (clean.length > 0) setProgressLine(clean.slice(0, 80));
+          }
         });
+        deployProcess.stderr?.on("data", (data: Buffer) => {
+          const lines = data.toString().split("\n").filter((l) => l.trim().length > 0);
+          const lastLine = lines.at(-1);
+          if (lastLine) {
+            const clean = lastLine.replace(/\x1b\[[0-9;]*m/g, "").trim();
+            if (clean.length > 0 && !clean.startsWith("WARNING")) setProgressLine(clean.slice(0, 80));
+          }
+        });
+        await deployProcess;
 
         // Read domain from .env
         const environment = await loadEnvFile(platformDirectory);
-        const domain = environment["DOMAIN"] ?? "industream.platform.lan";
+        const domain = environment["INDUSTREAM_DOMAIN"] ?? "industream.platform.lan";
 
         setStatusMessage("Seeding ConfigHub...");
-        await execa(
+        setProgressLine("");
+        await runScript(
           join(resolved, "scripts/setup/seed-confighub.sh"),
           ["--stack", "industream-prod", "--domain", domain],
-          {
-            cwd: resolved,
-            stdio: "pipe",
-          },
+          resolved,
+          (line) => setProgressLine(line),
         );
 
-        // Step 4: Save config
+        // Save config
         await saveConfig({
           platformDir: platformDirectory,
           defaultEnvironment: "prod",
+          domain,
         });
 
         setStep("done");
+        setProgressLine("");
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setStep("error");
@@ -122,7 +215,7 @@ function InstallWizard(): React.ReactElement {
       <Banner />
       <BoltAnimated dancing={isDancing} message={BOLT_MESSAGES[step]} />
       {isError && (
-        <Box marginTop={1}>
+        <Box marginTop={1} flexDirection="column">
           <Text color="red">Installation failed: {error}</Text>
         </Box>
       )}
@@ -135,8 +228,11 @@ function InstallWizard(): React.ReactElement {
         </Box>
       )}
       {!isDone && !isError && (
-        <Box marginTop={1}>
-          <Text dimColor>{statusMessage}</Text>
+        <Box marginTop={1} flexDirection="column">
+          <Text color="blue">{statusMessage}</Text>
+          {progressLine.length > 0 && (
+            <Text dimColor>  {progressLine}</Text>
+          )}
         </Box>
       )}
     </Box>

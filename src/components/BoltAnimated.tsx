@@ -96,7 +96,7 @@ const BOLT_FRAMES = [
 
 interface BoltAnimatedProps {
   dancing?: boolean;
-  message?: string;
+  message?: string | string[];
 }
 
 export function BoltAnimated({
@@ -104,6 +104,7 @@ export function BoltAnimated({
   message,
 }: BoltAnimatedProps): React.ReactElement {
   const [frame, setFrame] = useState(0);
+  const [messageIndex, setMessageIndex] = useState(0);
 
   useEffect(() => {
     if (!dancing) return;
@@ -113,7 +114,20 @@ export function BoltAnimated({
     return () => clearInterval(timer);
   }, [dancing]);
 
+  // Cycle through messages every 8 seconds
+  useEffect(() => {
+    if (!Array.isArray(message) || message.length <= 1) return;
+    setMessageIndex(0);
+    const timer = setInterval(() => {
+      setMessageIndex((prev) => (prev + 1) % (message as string[]).length);
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [message]);
+
   const currentFrame = BOLT_FRAMES[dancing ? frame : 0];
+  const currentMessage = Array.isArray(message)
+    ? message[messageIndex % message.length]
+    : message;
 
   return (
     <Box flexDirection="column" alignItems="center">
@@ -124,11 +138,11 @@ export function BoltAnimated({
           </Text>
         ))}
       </Box>
-      {message && (
+      {currentMessage && (
         <Box marginTop={1}>
           <Text bold>
             {"  "}
-            <Text color="cyan">Bolt:</Text> <Text dimColor>"{message}"</Text>
+            <Text color="cyan">Bolt:</Text> <Text dimColor>"{currentMessage}"</Text>
           </Text>
         </Box>
       )}
