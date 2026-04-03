@@ -137,12 +137,20 @@ fi
 # Step 5: Install Industream CLI
 # =============================================================================
 echo ""
-echo -e "  ${BLUE}Installing Industream CLI...${NC}"
-sudo npm install -g git+https://github.com/industream/industream-cli.git 2>/dev/null || {
-  echo -e "  ${RED}Failed to install CLI${NC}"
-  exit 1
-}
-echo -e "  ${GREEN}✓${NC} Industream CLI $(industream --version 2>/dev/null || echo 'installed')"
+CLI_DIR="${HOME}/.local/share/industream/cli"
+if [ -d "$CLI_DIR/.git" ]; then
+  echo -e "  ${DIM}Updating Industream CLI...${NC}"
+  git -C "$CLI_DIR" pull --ff-only -q 2>/dev/null || true
+else
+  echo -e "  ${DIM}Downloading Industream CLI...${NC}"
+  mkdir -p "$(dirname "$CLI_DIR")"
+  git clone -q https://github.com/industream/industream-cli.git "$CLI_DIR"
+fi
+echo -e "  ${DIM}Installing dependencies...${NC}"
+cd "$CLI_DIR" && npm install --omit=dev -q 2>/dev/null
+npm run build -s 2>/dev/null
+sudo npm link -q 2>/dev/null
+echo -e "  ${GREEN}✓${NC} Industream CLI $(node "$CLI_DIR/dist/index.mjs" --version 2>/dev/null || echo 'installed')"
 
 # =============================================================================
 # Done — launch wizard
