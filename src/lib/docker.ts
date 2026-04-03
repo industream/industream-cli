@@ -1,5 +1,23 @@
 // src/lib/docker.ts
 import { execa } from "execa";
+import { existsSync } from "node:fs";
+
+// Find docker binary — may not be in PATH (e.g. inside sg session)
+function findDocker(): string {
+  const candidates = [
+    "docker",
+    "/usr/bin/docker",
+    "/usr/local/bin/docker",
+    "/snap/bin/docker",
+  ];
+  for (const candidate of candidates) {
+    if (candidate === "docker") return candidate; // try PATH first
+    if (existsSync(candidate)) return candidate;
+  }
+  return "docker";
+}
+
+const DOCKER = findDocker();
 
 export interface SwarmService {
   name: string;
@@ -44,7 +62,7 @@ export function parseImageVersion(image: string): string {
 export async function getSwarmServices(
   stackName: string,
 ): Promise<SwarmService[]> {
-  const { stdout } = await execa("docker", [
+  const { stdout } = await execa(DOCKER, [
     "stack",
     "services",
     stackName,
@@ -56,7 +74,7 @@ export async function getSwarmServices(
 
 export async function isSwarmActive(): Promise<boolean> {
   try {
-    const { stdout } = await execa("docker", [
+    const { stdout } = await execa(DOCKER, [
       "info",
       "--format",
       "{{.Swarm.LocalNodeState}}",
@@ -69,7 +87,7 @@ export async function isSwarmActive(): Promise<boolean> {
 
 export async function isDockerAvailable(): Promise<boolean> {
   try {
-    await execa("docker", ["version", "--format", "{{.Server.Version}}"]);
+    await execa(DOCKER, ["version", "--format", "{{.Server.Version}}"]);
     return true;
   } catch {
     return false;
@@ -80,7 +98,7 @@ export async function getServiceLogs(
   serviceName: string,
   tail = 100,
 ): Promise<string> {
-  const { stdout } = await execa("docker", [
+  const { stdout } = await execa(DOCKER, [
     "service",
     "logs",
     "--tail",

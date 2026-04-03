@@ -41,7 +41,7 @@ function InstallWizard(): React.ReactElement {
         setStatusMessage("Checking Docker Swarm...");
         if (!(await isSwarmActive())) {
           setStatusMessage("Initializing Docker Swarm...");
-          await execa("docker", ["swarm", "init"]);
+          await execa("/usr/bin/docker", ["swarm", "init"]);
         }
 
         // Step 2: Clone repo
