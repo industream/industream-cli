@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { render, Text, Box, useInput, useApp } from "ink";
 import { Banner } from "../components/Banner.js";
 import { execa } from "execa";
+import { createInterface } from "node:readline";
 
 interface MenuItem {
   key: string;
@@ -30,7 +31,6 @@ function MainMenu(): React.ReactElement {
       return;
     }
 
-    // Number key shortcut
     const item = MENU_ITEMS.find((m) => m.key === input);
     if (item) {
       setLaunching(item.label);
@@ -39,7 +39,6 @@ function MainMenu(): React.ReactElement {
       return;
     }
 
-    // Arrow navigation
     if (key.upArrow) {
       setSelected((prev) => (prev > 0 ? prev - 1 : MENU_ITEMS.length - 1));
     } else if (key.downArrow) {
@@ -91,7 +90,6 @@ function launchCommand(args: string[]): void {
   const scriptPath = process.argv[1];
   execa("node", [scriptPath, ...args], { stdio: "inherit" })
     .then(() => {
-      // Re-launch menu after command completes
       runMenu();
     })
     .catch(() => {
@@ -99,6 +97,36 @@ function launchCommand(args: string[]): void {
     });
 }
 
+function runFallbackMenu(): void {
+  console.log("");
+  console.log("  \x1b[1mINDUSTREAM PLATFORM\x1b[0m");
+  console.log("");
+  for (const item of MENU_ITEMS) {
+    console.log(`    ${item.key}) ${item.label}  \x1b[2m${item.description}\x1b[0m`);
+  }
+  console.log("    0) Exit");
+  console.log("");
+
+  const readline = createInterface({ input: process.stdin, output: process.stdout });
+  readline.question("  Your choice: ", (answer) => {
+    readline.close();
+    const item = MENU_ITEMS.find((m) => m.key === answer.trim());
+    if (!item || answer.trim() === "0") {
+      return;
+    }
+    const scriptPath = process.argv[1];
+    execa("node", [scriptPath, ...item.command], { stdio: "inherit" })
+      .then(() => runFallbackMenu())
+      .catch(() => runFallbackMenu());
+  });
+}
+
 export function runMenu(): void {
-  render(<MainMenu />);
+  // Check if raw mode is supported (TTY with interactive terminal)
+  if (process.stdin.isTTY && typeof process.stdin.setRawMode === "function") {
+    render(<MainMenu />);
+  } else {
+    // Fallback to simple readline menu (works in sg, pipe, etc.)
+    runFallbackMenu();
+  }
 }
