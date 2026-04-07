@@ -12,7 +12,8 @@ interface ServiceTableProps {
 
 const CATEGORY_ORDER = [
   "FlowMaker",
-  "Workers",
+  "Workers (BSL 1.1)",
+  "Workers (Premium)",
   "Platform",
   "DataBridge",
   "DataCatalog",
@@ -32,11 +33,21 @@ function isCronjob(serviceName: string, modules: Module[]): boolean {
   return getModuleForService(serviceName, modules)?.type === "cronjob";
 }
 
+function isProprietary(serviceName: string, modules: Module[]): boolean {
+  return getModuleForService(serviceName, modules)?.license === "proprietary";
+}
+
 function getCategoryForService(
   serviceName: string,
   modules: Module[],
 ): string {
-  return getModuleForService(serviceName, modules)?.category ?? "Other";
+  const module = getModuleForService(serviceName, modules);
+  if (!module) return "Other";
+  // Split Workers into BSL (free) and Premium based on license
+  if (module.category === "Workers") {
+    return module.license === "proprietary" ? "Workers (Premium)" : "Workers (BSL 1.1)";
+  }
+  return module.category;
 }
 
 function groupServicesByCategory(

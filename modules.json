@@ -81,16 +81,6 @@
       "imagePattern": "minio/minio"
     },
     {
-      "id": "cloudbeaver",
-      "name": "CloudBeaver database admin",
-      "category": "Platform",
-      "license": "bsl",
-      "status": "ready",
-      "serviceName": "cloudbeaver",
-      "stackFile": "docker-stack.yml",
-      "imagePattern": "dbeaver/cloudbeaver"
-    },
-    {
       "id": "flowmaker-core-engine",
       "name": "FlowMaker core engine",
       "category": "FlowMaker",
