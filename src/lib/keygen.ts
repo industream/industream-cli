@@ -8,7 +8,6 @@ import { createHash } from "node:crypto";
 
 export const KEYGEN_ACCOUNT = "industream-com";
 export const KEYGEN_PRODUCT = "5d42435b-bd24-46f0-b577-9050e6daf477";
-export const KEYGEN_POLICY = "21baa572-3713-4cd5-95d1-d70c527009b7";
 const KEYGEN_API = "https://api.keygen.sh/v1";
 
 const LICENSE_DIR = join(homedir(), ".industream");
@@ -108,7 +107,6 @@ export async function validateKeyOnline(
         key,
         scope: {
           product: KEYGEN_PRODUCT,
-          policy: KEYGEN_POLICY,
           fingerprint,
         },
       },
