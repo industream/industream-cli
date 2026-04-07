@@ -213,10 +213,17 @@ function InstallWizard(): React.ReactElement {
 
         setStatusMessage("Deploying platform stack...");
         setProgressLine("");
+        // Build deploy args — exclude premium services if community plan
+        const deployArgs = ["--env", "prod"];
+        const { getDeployFlags } = await import("../lib/stack-filter.js");
+        const deployFlags = await getDeployFlags(resolved);
+        if (deployFlags.excludedServices.length > 0) {
+          deployArgs.push("--exclude", deployFlags.excludedServices.join(","));
+        }
         // Pass "y" to stdin for any interactive prompts (registry login, continue, etc.)
         const deployProcess = execa(
           join(resolved, "scripts/deploy-swarm.sh"),
-          ["--env", "prod"],
+          deployArgs,
           { cwd: resolved, stdout: "pipe", stderr: "pipe", stdin: "pipe" },
         );
         deployProcess.stdin?.write("y\ny\ny\ny\n");
