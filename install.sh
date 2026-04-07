@@ -12,6 +12,23 @@
 # =============================================================================
 set -e
 
+# Persist script to a file so we can re-exec ourselves after `sg docker`
+# without re-downloading a possibly cached version from GitHub.
+if [ -z "$INDUSTREAM_INSTALLER_SELF" ]; then
+  INDUSTREAM_INSTALLER_SELF=$(mktemp --suffix=.sh)
+  # Copy current script content (works with bash <(curl) which gives a pipe)
+  if [ -r "$0" ] && [ "$0" != "bash" ]; then
+    cp "$0" "$INDUSTREAM_INSTALLER_SELF" 2>/dev/null || true
+  fi
+  # If cp failed (e.g. $0 is /dev/fd/63 from process substitution),
+  # re-download once from the main branch using the cache-bust parameter
+  if [ ! -s "$INDUSTREAM_INSTALLER_SELF" ]; then
+    curl -fsSL "https://raw.githubusercontent.com/industream/industream-cli/main/install.sh?t=$(date +%s)" > "$INDUSTREAM_INSTALLER_SELF"
+  fi
+  chmod +x "$INDUSTREAM_INSTALLER_SELF"
+  export INDUSTREAM_INSTALLER_SELF
+fi
+
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
@@ -96,8 +113,9 @@ else
     sudo systemctl enable --now docker 2>/dev/null || true
     sudo usermod -aG docker "$USER"
     echo -e "  ${DIM}Activating docker group for current session...${NC}"
-    SCRIPT_URL="https://raw.githubusercontent.com/industream/industream-cli/main/install.sh"
-    exec sg docker -c "curl -fsSL $SCRIPT_URL | bash"
+    # Save current script to temp file and re-exec it with docker group active
+    # (avoids re-downloading a cached version from GitHub)
+    exec sg docker -c "bash $INDUSTREAM_INSTALLER_SELF"
   fi
   echo -e "  ${YELLOW}Installing Docker...${NC}"
   curl -fsSL https://get.docker.com | sh
@@ -106,8 +124,7 @@ else
   echo -e "  ${GREEN}✓${NC} Docker installed"
   # Continue the rest of the script with docker group active (no re-login needed)
   echo -e "  ${DIM}Activating docker group for current session...${NC}"
-  SCRIPT_URL="https://raw.githubusercontent.com/industream/industream-cli/main/install.sh"
-  exec sg docker -c "curl -fsSL $SCRIPT_URL | bash"
+  exec sg docker -c "bash $INDUSTREAM_INSTALLER_SELF"
 fi
 
 # =============================================================================
