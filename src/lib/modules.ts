@@ -8,6 +8,7 @@ export interface Module {
   category: string;
   license: "bsl" | "proprietary" | "apache";
   status: "ready" | "coming-soon" | "under-test" | "on-request";
+  type?: "service" | "cronjob";
   serviceName?: string;
   stackFile?: string;
   imagePattern?: string;

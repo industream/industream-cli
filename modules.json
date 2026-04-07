@@ -506,6 +506,7 @@
       "category": "Backup",
       "license": "bsl",
       "status": "ready",
+      "type": "cronjob",
       "serviceName": "backup-influxdb",
       "stackFile": "docker-stack.backup.yml",
       "imagePattern": "influxdb"
@@ -516,6 +517,7 @@
       "category": "Backup",
       "license": "bsl",
       "status": "ready",
+      "type": "cronjob",
       "serviceName": "backup-postgres",
       "stackFile": "docker-stack.backup.yml",
       "imagePattern": "postgres"
@@ -526,6 +528,7 @@
       "category": "Backup",
       "license": "bsl",
       "status": "ready",
+      "type": "cronjob",
       "serviceName": "backup-volumes",
       "stackFile": "docker-stack.backup.yml",
       "imagePattern": "backup-volumes"

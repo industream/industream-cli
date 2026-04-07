@@ -21,12 +21,22 @@ const CATEGORY_ORDER = [
   "Ecosystem",
 ];
 
+function getModuleForService(
+  serviceName: string,
+  modules: Module[],
+): Module | undefined {
+  return modules.find((m) => m.serviceName === serviceName);
+}
+
+function isCronjob(serviceName: string, modules: Module[]): boolean {
+  return getModuleForService(serviceName, modules)?.type === "cronjob";
+}
+
 function getCategoryForService(
   serviceName: string,
   modules: Module[],
 ): string {
-  const module = modules.find((m) => m.serviceName === serviceName);
-  return module?.category ?? "Other";
+  return getModuleForService(serviceName, modules)?.category ?? "Other";
 }
 
 function groupServicesByCategory(
@@ -39,6 +49,16 @@ function groupServicesByCategory(
     const existing = groups.get(category) ?? [];
     existing.push(service);
     groups.set(category, existing);
+  }
+  // Within each group, sort: services first, cronjobs last
+  for (const [category, list] of groups) {
+    list.sort((a, b) => {
+      const aCron = isCronjob(a.name, modules);
+      const bCron = isCronjob(b.name, modules);
+      if (aCron === bCron) return a.name.localeCompare(b.name);
+      return aCron ? 1 : -1;
+    });
+    groups.set(category, list);
   }
   return groups;
 }
@@ -84,17 +104,22 @@ export function ServiceTable({
       </Box>
       {sortedCategories.map((category) => {
         const categoryServices = groups.get(category) ?? [];
-        const runningCount = categoryServices.filter((s) => s.isRunning).length;
+        // Count only non-cronjob services in the running tally
+        const realServices = categoryServices.filter(
+          (s) => !isCronjob(s.name, modules),
+        );
+        const runningCount = realServices.filter((s) => s.isRunning).length;
         return (
           <Box key={category} flexDirection="column" marginTop={1}>
             <Text bold color="blue">
-              ── {category} ({runningCount}/{categoryServices.length}) ──
+              ── {category} ({runningCount}/{realServices.length}) ──
             </Text>
             {categoryServices.map((service) => (
               <ServiceRow
                 key={service.name}
                 service={service}
                 isLocked={lockedModuleIds.includes(service.name)}
+                isCronjob={isCronjob(service.name, modules)}
               />
             ))}
           </Box>
@@ -107,13 +132,33 @@ export function ServiceTable({
 function ServiceRow({
   service,
   isLocked,
+  isCronjob = false,
 }: {
   service: SwarmService;
   isLocked: boolean;
+  isCronjob?: boolean;
 }): React.ReactElement {
-  const statusIcon = isLocked ? "🔒" : service.isRunning ? "●" : "○";
-  const statusColor = isLocked ? "gray" : service.isRunning ? "green" : "red";
-  const statusText = isLocked ? "premium" : service.isRunning ? "running" : "stopped";
+  const statusIcon = isLocked
+    ? "🔒"
+    : isCronjob
+      ? "◷"
+      : service.isRunning
+        ? "●"
+        : "○";
+  const statusColor = isLocked
+    ? "gray"
+    : isCronjob
+      ? "gray"
+      : service.isRunning
+        ? "green"
+        : "red";
+  const statusText = isLocked
+    ? "premium"
+    : isCronjob
+      ? "scheduled"
+      : service.isRunning
+        ? "running"
+        : "stopped";
 
   const hasUpdate =
     service.latestVersion &&
