@@ -1,6 +1,6 @@
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
+import { readFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 export interface Module {
   id: string;
@@ -17,8 +17,28 @@ export interface ModuleRegistry {
   modules: Module[];
 }
 
+let cachedRegistry: ModuleRegistry | null = null;
+
+// Resolve modules.json location across dev (src/lib/), bundled (dist/), and npm-linked installs
+function findModulesJson(): string {
+  const currentFile = fileURLToPath(import.meta.url);
+  const currentDir = dirname(currentFile);
+  const candidates = [
+    join(currentDir, "..", "..", "modules.json"), // src/lib → root
+    join(currentDir, "..", "modules.json"), // dist → root
+    join(currentDir, "modules.json"), // same dir
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error(`modules.json not found. Tried: ${candidates.join(", ")}`);
+}
+
 export function loadModuleRegistry(): ModuleRegistry {
-  return require("../../modules.json") as ModuleRegistry;
+  if (cachedRegistry) return cachedRegistry;
+  const path = findModulesJson();
+  cachedRegistry = JSON.parse(readFileSync(path, "utf-8")) as ModuleRegistry;
+  return cachedRegistry;
 }
 
 export function getModulesByLicense(
