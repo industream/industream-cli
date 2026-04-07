@@ -208,11 +208,25 @@ echo -e "${GREEN}${BOLD}  All prerequisites installed!${NC}"
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo -e "  ${YELLOW}${BOLD}Next step:${NC}"
+echo -e "  ${YELLOW}${BOLD}Next step:${NC} your session needs to reload the docker group."
 echo ""
-echo -e "  Close this session and reconnect, then type:"
+echo -e "  ${DIM}Reconnect with:${NC}"
+echo -e "    ${BOLD}ssh ${USER}@$(hostname -I | awk '{print $1}')${NC}"
 echo ""
+echo -e "  ${DIM}Then type:${NC}"
 echo -e "    ${BOLD}industream${NC}"
 echo ""
-echo -e "  This will open the interactive platform manager."
+echo -e "  ${DIM}This will open the interactive platform manager.${NC}"
 echo ""
+echo -e "${YELLOW}  You will now be logged out in 5 seconds...${NC}"
+echo ""
+sleep 5
+
+# Kill the shell / SSH session to force a reconnect so the docker group
+# becomes active. If the user is running this via `bash <(curl)` locally,
+# just exit cleanly — they can manually reconnect.
+if [ -n "$SSH_CONNECTION" ] && [ -n "$SSH_TTY" ]; then
+  # Kill the parent shell to drop the SSH session
+  kill -HUP "$PPID" 2>/dev/null || true
+fi
+exit 0
