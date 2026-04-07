@@ -138,7 +138,13 @@ export async function isDockerAvailable(): Promise<boolean> {
   try {
     await execa(DOCKER, ["version", "--format", "{{.Server.Version}}"]);
     return true;
-  } catch {
+  } catch (err) {
+    if (process.env.INDUSTREAM_DEBUG) {
+      console.error(
+        `[debug] isDockerAvailable failed with DOCKER=${DOCKER}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
     return false;
   }
 }
