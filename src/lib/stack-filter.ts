@@ -50,17 +50,18 @@ export async function getDeployFlags(
 }
 
 /**
- * Check whether a module is allowed under the current plan and entitlements.
- * BSL/Apache modules are always allowed. Proprietary modules require either
- * the trial/enterprise plan or an explicit entitlement.
+ * Check whether a module is allowed under the current entitlements.
+ * BSL and Apache modules are always allowed. Proprietary modules require
+ * the module's entitlement code to be present in the license's entitlement
+ * list. The plan name is informational only — entitlements are the source
+ * of truth.
  */
 export function isModuleAllowed(
   module: Module,
-  plan: string,
+  _plan: string,
   entitlements: string[],
 ): boolean {
   if (module.license === "bsl" || module.license === "apache") return true;
-  if (plan === "enterprise" || plan === "trial") return true;
   if (!module.entitlement) return false;
   return entitlements.includes(module.entitlement);
 }

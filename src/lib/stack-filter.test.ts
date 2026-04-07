@@ -110,10 +110,15 @@ describe("getDeployFlags", () => {
     expect(flags.excludedServices).toContain("worker-rtsp-client");
   });
 
-  it("includes all services during trial", async () => {
+  it("allows trial plan when all entitlements are attached", async () => {
+    // Trial policy should have all entitlements attached in Keygen
+    const allEntitlements = loadModuleRegistry()
+      .modules.filter((m) => m.license === "proprietary" && m.entitlement)
+      .map((m) => m.entitlement!);
+
     mockLicense({
       plan: "trial",
-      entitlements: [],
+      entitlements: allEntitlements,
       customer: "Trial Corp",
     });
 
@@ -121,6 +126,5 @@ describe("getDeployFlags", () => {
 
     expect(flags.plan).toBe("trial");
     expect(flags.excludedServices).toEqual([]);
-    expect(flags.licensedModuleCount).toBe(flags.totalModuleCount);
   });
 });
