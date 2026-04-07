@@ -23,10 +23,24 @@ const headers = {
 };
 
 async function main(): Promise<void> {
-  const response = await fetch(`${API}/policies?page[size]=100`, { headers });
+  const response = await fetch(
+    `${API}/policies?page[number]=1&page[size]=100`,
+    { headers },
+  );
   const body = (await response.json()) as {
-    data: Array<{ id: string; attributes: { name: string } }>;
+    data?: Array<{ id: string; attributes: { name: string } }>;
+    errors?: Array<{ detail: string }>;
   };
+
+  if (body.errors) {
+    console.error("API errors:", body.errors);
+    process.exit(1);
+  }
+
+  if (!body.data) {
+    console.error("No data in response");
+    process.exit(1);
+  }
 
   console.log(`Updating ${body.data.length} policies...`);
   console.log("");
