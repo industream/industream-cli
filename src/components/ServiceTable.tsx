@@ -11,11 +11,11 @@ interface ServiceTableProps {
 }
 
 const CATEGORY_ORDER = [
-  "Platform",
   "FlowMaker",
+  "Workers",
+  "Platform",
   "DataBridge",
   "DataCatalog",
-  "Workers",
   "Monitoring",
   "Backup",
   "Ecosystem",
