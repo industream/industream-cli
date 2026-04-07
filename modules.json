@@ -133,7 +133,7 @@
     {
       "id": "worker-manager",
       "name": "Worker Manager",
-      "category": "FlowMaker",
+      "category": "Workers",
       "license": "bsl",
       "status": "ready",
       "serviceName": "worker-manager",
@@ -213,7 +213,7 @@
     {
       "id": "mqtt-connector",
       "name": "MQTT connector",
-      "category": "DataBridge",
+      "category": "Workers",
       "license": "bsl",
       "status": "ready",
       "serviceName": "worker-mqtt-client",
@@ -223,7 +223,7 @@
     {
       "id": "modbus-tcp-connector",
       "name": "Modbus TCP connector",
-      "category": "DataBridge",
+      "category": "Workers",
       "license": "bsl",
       "status": "ready",
       "serviceName": "worker-modbus-tcp",
@@ -233,7 +233,7 @@
     {
       "id": "rest-api-connector",
       "name": "REST API connector",
-      "category": "DataBridge",
+      "category": "Workers",
       "license": "bsl",
       "status": "ready",
       "serviceName": "worker-http-client",
@@ -243,7 +243,7 @@
     {
       "id": "opc-ua-connector",
       "name": "OPC-UA connector",
-      "category": "DataBridge",
+      "category": "Workers",
       "license": "proprietary",
       "status": "ready",
       "serviceName": "worker-opc-ua-client",
@@ -253,7 +253,7 @@
     {
       "id": "rtsp-connector",
       "name": "RTSP connector",
-      "category": "DataBridge",
+      "category": "Workers",
       "license": "proprietary",
       "status": "ready",
       "serviceName": "worker-rtsp-client",
@@ -263,7 +263,7 @@
     {
       "id": "minio-connector",
       "name": "MinIO connector",
-      "category": "DataBridge",
+      "category": "Workers",
       "license": "bsl",
       "status": "ready",
       "serviceName": "worker-minio-sink",
@@ -293,7 +293,7 @@
     {
       "id": "datacatalog-mapper",
       "name": "DataCatalog Mapper worker",
-      "category": "DataCatalog",
+      "category": "Workers",
       "license": "bsl",
       "status": "ready",
       "serviceName": "worker-datacatalog-mapper",
@@ -499,6 +499,36 @@
       "serviceName": "swarm-cronjob",
       "stackFile": "docker-stack.backup.yml",
       "imagePattern": "crazymax/swarm-cronjob"
+    },
+    {
+      "id": "backup-influxdb",
+      "name": "InfluxDB Backup",
+      "category": "Backup",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "backup-influxdb",
+      "stackFile": "docker-stack.backup.yml",
+      "imagePattern": "influxdb"
+    },
+    {
+      "id": "backup-postgres",
+      "name": "Postgres Backup",
+      "category": "Backup",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "backup-postgres",
+      "stackFile": "docker-stack.backup.yml",
+      "imagePattern": "postgres"
+    },
+    {
+      "id": "backup-volumes",
+      "name": "Volumes Backup",
+      "category": "Backup",
+      "license": "bsl",
+      "status": "ready",
+      "serviceName": "backup-volumes",
+      "stackFile": "docker-stack.backup.yml",
+      "imagePattern": "backup-volumes"
     },
     {
       "id": "grafana-databridge",
