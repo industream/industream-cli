@@ -29,6 +29,10 @@ if (!USER || !PASSWORD) {
 
 const APPLY = process.argv.includes("--apply");
 const COMMUNITY_PROJECT = "flowmaker.community";
+// Keep only the N most recent artifacts per image (by push_time).
+// Override with --keep=N
+const KEEP_ARG = process.argv.find((a) => a.startsWith("--keep="));
+const KEEP_RECENT = KEEP_ARG ? parseInt(KEEP_ARG.split("=")[1], 10) : 1;
 
 const BSL_IMAGES = [
   // flowmaker.core
@@ -80,6 +84,7 @@ const authHeader = `Basic ${Buffer.from(`${USER}:${PASSWORD}`).toString("base64"
 
 interface Artifact {
   digest: string;
+  push_time?: string;
   tags?: Array<{ name: string }>;
 }
 
@@ -152,8 +157,15 @@ async function main(): Promise<void> {
       continue;
     }
 
-    // Copy the latest tag only (could be extended to copy all tags)
-    const withTags = artifacts.filter((a) => a.tags && a.tags.length > 0);
+    // Keep only tagged artifacts, sort by push_time descending, keep N most recent
+    const withTags = artifacts
+      .filter((a) => a.tags && a.tags.length > 0)
+      .sort((a, b) => {
+        const ta = a.push_time ? new Date(a.push_time).getTime() : 0;
+        const tb = b.push_time ? new Date(b.push_time).getTime() : 0;
+        return tb - ta;
+      })
+      .slice(0, KEEP_RECENT);
     if (withTags.length === 0) {
       console.log("(no tagged artifacts, skipping)");
       totalMissing++;
