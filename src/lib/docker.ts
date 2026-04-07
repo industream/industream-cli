@@ -4,16 +4,16 @@ import { existsSync } from "node:fs";
 
 // Find docker binary — may not be in PATH (e.g. inside sg session)
 function findDocker(): string {
-  const candidates = [
-    "docker",
+  // Prefer absolute paths so we work even when PATH is stripped
+  const absolutePaths = [
     "/usr/bin/docker",
     "/usr/local/bin/docker",
     "/snap/bin/docker",
   ];
-  for (const candidate of candidates) {
-    if (candidate === "docker") return candidate; // try PATH first
+  for (const candidate of absolutePaths) {
     if (existsSync(candidate)) return candidate;
   }
+  // Fall back to PATH resolution
   return "docker";
 }
 
