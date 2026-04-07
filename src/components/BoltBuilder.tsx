@@ -22,33 +22,6 @@ const LOGO_LINES = [
   "╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝",
 ];
 
-// Bolt sprite frames (simpler version, just two arms-up frames)
-const BOLT_BUILD = [
-  "  ┌───┐  ",
-  "  │◉ ◉│  ",
-  "  │◡◡◡│  ",
-  "┌─┤   ├─┐",
-  "│ └─┬─┘ │",
-  "◯  │  ◯ ",
-  "│ ┌┴┐ │  ",
-  "└─┤ ├─┘  ",
-  "  │ │    ",
-  "  ┴ ┴    ",
-];
-
-const BOLT_HAMMER = [
-  "  ┌───┐  ",
-  "  │◉ ◉│  ",
-  "  │◡◡◡│  ",
-  "┌─┤   ├─┐",
-  "│ └─┬─┘ │",
-  "\\◯/│  ◯ ",
-  "│ ┌┴┐ │  ",
-  "└─┤ ├─┘  ",
-  "  │ │    ",
-  "  ┴ ┴    ",
-];
-
 interface BoltBuilderProps {
   /** Called once the build animation completes */
   onComplete?: () => void;
@@ -61,7 +34,6 @@ export function BoltBuilder({
   duration = 4000,
 }: BoltBuilderProps): React.ReactElement {
   const [progress, setProgress] = useState(0); // 0..1
-  const [boltFrame, setBoltFrame] = useState(0);
   const totalSteps = 30;
 
   useEffect(() => {
@@ -77,14 +49,6 @@ export function BoltBuilder({
     }, stepDelay);
     return () => clearInterval(timer);
   }, [duration, onComplete]);
-
-  // Bolt animates between two frames
-  useEffect(() => {
-    const animTimer = setInterval(() => {
-      setBoltFrame((prev) => (prev + 1) % 2);
-    }, 200);
-    return () => clearInterval(animTimer);
-  }, []);
 
   // Reveal logic: split between network (first half) and ASCII (second half)
   const networkProgress = Math.min(progress * 2, 1);
@@ -112,27 +76,15 @@ export function BoltBuilder({
     line.slice(0, colsToRevealLogo).padEnd(line.length, " "),
   );
 
-  const boltSprite = boltFrame === 0 ? BOLT_BUILD : BOLT_HAMMER;
-
   return (
-    <Box flexDirection="column">
-      <Box>
-        {/* Bolt on the left */}
-        <Box flexDirection="column" marginRight={2}>
-          {boltSprite.map((line, idx) => (
-            <Text key={idx} color="blue">
-              {line}
-            </Text>
-          ))}
-        </Box>
-        {/* Network being built */}
-        <Box flexDirection="column" marginTop={1}>
-          {revealedNetwork.map((line, idx) => (
-            <Text key={idx} color="blue">
-              {line}
-            </Text>
-          ))}
-        </Box>
+    <Box flexDirection="column" alignItems="center">
+      {/* Network being built */}
+      <Box flexDirection="column">
+        {revealedNetwork.map((line, idx) => (
+          <Text key={idx} color="blue">
+            {line}
+          </Text>
+        ))}
       </Box>
       {/* ASCII logo being built */}
       <Box flexDirection="column" marginTop={1}>
@@ -142,11 +94,6 @@ export function BoltBuilder({
             <Text color="blue">{line.slice(30)}</Text>
           </Text>
         ))}
-      </Box>
-      <Box marginTop={1}>
-        <Text bold color="blue">
-          {"  Bolt:"} <Text dimColor>"Building your platform..."</Text>
-        </Text>
       </Box>
     </Box>
   );
