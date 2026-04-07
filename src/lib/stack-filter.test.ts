@@ -97,20 +97,21 @@ describe("getDeployFlags", () => {
     expect(flags.excludedServices).toEqual([]);
   });
 
-  it("includes only modules whose entitlement is granted", async () => {
+  it("includes datacatalog workers when PRODUCT_DATACATALOG is granted", async () => {
     mockLicense({
       plan: "pro",
-      entitlements: ["MODULE_OPC_UA"],
+      entitlements: ["PRODUCT_DATACATALOG"],
       customer: "Pro Corp",
     });
 
     const flags = await getDeployFlags("/tmp/platform");
 
     expect(flags.plan).toBe("pro");
+    // Workers covered by PRODUCT_DATACATALOG should be deployed
     expect(flags.excludedServices).not.toContain("worker-opc-ua-client");
-
-    // Other proprietary services without entitlement should be excluded
-    expect(flags.excludedServices).toContain("worker-rtsp-client");
+    expect(flags.excludedServices).not.toContain("worker-rtsp-client");
+    // Modules in other packages (e.g. backup) should still be excluded
+    expect(flags.excludedServices).toContain("backup-monitor");
   });
 
   it("allows trial plan when all entitlements are attached", async () => {

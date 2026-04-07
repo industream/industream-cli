@@ -86,57 +86,43 @@ const POLICIES = [
 ];
 
 // =============================================================================
-// ENTITLEMENTS — one per proprietary module
+// ENTITLEMENTS — one per product/bundle (matching Industream pricing structure)
 // =============================================================================
 const ENTITLEMENTS = [
-  // Live connectors
-  { code: "MODULE_OPC_UA", name: "OPC-UA Connector" },
-  { code: "MODULE_S7", name: "Siemens S7 Connector" },
-  { code: "MODULE_RTSP", name: "RTSP Connector" },
-  { code: "MODULE_GSTREAMER", name: "GStreamer Connector" },
-  { code: "MODULE_AUDIO", name: "Audio Connector" },
-  { code: "MODULE_LENADA", name: "Lenada Connector" },
-  { code: "MODULE_OSISOFT_PI", name: "OSIsoft PI Connector" },
-  { code: "MODULE_SAP", name: "SAP Connector" },
-  { code: "MODULE_ODOO", name: "Odoo Connector" },
+  // Main products (sold as bundles in Customer Pricing)
+  {
+    code: "PRODUCT_DATACATALOG",
+    name: "Data & Asset Catalog (FlowMaker, DataBridge, UI Fusion, Grafana)",
+  },
+  { code: "PRODUCT_AI_STUDIO", name: "AI Studio & Inference" },
+  { code: "PRODUCT_MCP", name: "MCP Agentic Access (LLM enabler)" },
 
-  // Historical connectors
-  { code: "MODULE_MS_SQL", name: "MS SQL Server Connector" },
-  { code: "MODULE_TIMESCALE_DB", name: "TimescaleDB" },
+  // System options (add-ons, sold separately)
+  { code: "ADDON_BACKUP", name: "Backup & monitoring" },
+  { code: "ADDON_REDUNDANT", name: "Redundant server (HA active/passive)" },
 
-  // AI / Edge
-  { code: "MODULE_AI_STUDIO", name: "AI Studio" },
-  { code: "MODULE_EDGE_AI", name: "Edge AI Inference" },
-  { code: "MODULE_AI_REGISTRY", name: "AI Model Registry" },
-
-  // Vision / monitoring
-  { code: "MODULE_TUYERE_MONITORING", name: "Tuyere Monitoring" },
-  { code: "MODULE_IR_HOTSPOT", name: "IR Hot Spot Detection" },
-  { code: "MODULE_FREE_ROLL", name: "Free Roll Monitoring" },
-  { code: "MODULE_FLOWGUARD", name: "FlowGuard OEE/TRS" },
-
-  // Process packages
-  { code: "MODULE_IRONSTREAM", name: "IronStream (Blast Furnace)" },
-  { code: "MODULE_ARCSTREAM", name: "ArcStream (EAF)" },
-
-  // Compliance
-  { code: "MODULE_EU_ETS", name: "EU ETS CO2 Accounting" },
+  // Process packages (quoted separately)
+  { code: "PACKAGE_IRONSTREAM", name: "IronStream — Blast Furnace process package" },
+  { code: "PACKAGE_ARCSTREAM", name: "ArcStream — EAF process package" },
+  { code: "PACKAGE_FLOWGUARD", name: "FlowGuard — OEE/TRS monitoring" },
+  { code: "PACKAGE_MONITORING", name: "Industrial Monitoring (Tuyere, IR Hot Spot, Free Roll)" },
 ];
 
 // =============================================================================
 // POLICY → ENTITLEMENTS mapping
 // =============================================================================
-// Tag bundles do NOT include premium modules by default. Premium modules are
-// add-ons that must be attached individually to each license. Only Trial gets
-// everything unlocked (for evaluation purposes).
+// All commercial tag bundles include PRODUCT_DATACATALOG by default (it IS the
+// product being sold). Other entitlements (AI Studio, MCP, Backup, packages)
+// are sold separately and must be attached to each license individually.
+// Trial gets everything unlocked for evaluation.
 const POLICY_ENTITLEMENTS: Record<string, string[]> = {
   Community: [],
   "Trial 90 days": ENTITLEMENTS.map((e) => e.code), // all unlocked during trial
-  "Starter 25 tags": [],
-  "Standard 100 tags": [],
-  "Professional 500 tags": [],
-  "Business 1000 tags": [],
-  "Enterprise 5000 tags": [],
+  "Starter 25 tags": ["PRODUCT_DATACATALOG"],
+  "Standard 100 tags": ["PRODUCT_DATACATALOG"],
+  "Professional 500 tags": ["PRODUCT_DATACATALOG"],
+  "Business 1000 tags": ["PRODUCT_DATACATALOG"],
+  "Enterprise 5000 tags": ["PRODUCT_DATACATALOG"],
 };
 
 // =============================================================================

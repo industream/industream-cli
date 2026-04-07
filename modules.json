@@ -193,7 +193,7 @@
       "serviceName": "timescaledb",
       "stackFile": "docker-stack.data.yml",
       "imagePattern": "timescale/timescaledb",
-      "entitlement": "MODULE_TIMESCALE_DB"
+      "entitlement": "PRODUCT_DATACATALOG"
     },
     {
       "id": "postgresql-connector",
@@ -214,7 +214,7 @@
       "serviceName": "databridge-timescaledb",
       "stackFile": "docker-stack.data.yml",
       "imagePattern": "timeseries/api",
-      "entitlement": "MODULE_TIMESCALE_DB"
+      "entitlement": "PRODUCT_DATACATALOG"
     },
     {
       "id": "mqtt-connector",
@@ -255,7 +255,7 @@
       "serviceName": "worker-opc-ua-client",
       "stackFile": "docker-stack.workers.yml",
       "imagePattern": "flowmaker.boxes/flow-box-opc-ua-client",
-      "entitlement": "MODULE_OPC_UA"
+      "entitlement": "PRODUCT_DATACATALOG"
     },
     {
       "id": "rtsp-connector",
@@ -266,7 +266,7 @@
       "serviceName": "worker-rtsp-client",
       "stackFile": "docker-stack.workers.yml",
       "imagePattern": "flowmaker.boxes/flow-box-rtsp-client",
-      "entitlement": "MODULE_RTSP"
+      "entitlement": "PRODUCT_DATACATALOG"
     },
     {
       "id": "minio-connector",
@@ -492,54 +492,59 @@
       "id": "backup-monitor",
       "name": "Backup Monitor",
       "category": "Backup",
-      "license": "bsl",
+      "license": "proprietary",
       "status": "ready",
       "serviceName": "backup-monitor",
       "stackFile": "docker-stack.backup.yml",
-      "imagePattern": "flowmaker.infra/backup-monitor"
+      "imagePattern": "flowmaker.infra/backup-monitor",
+      "entitlement": "ADDON_BACKUP"
     },
     {
       "id": "swarm-cronjob",
       "name": "Backup scheduler",
       "category": "Backup",
-      "license": "bsl",
+      "license": "proprietary",
       "status": "ready",
       "serviceName": "swarm-cronjob",
       "stackFile": "docker-stack.backup.yml",
-      "imagePattern": "crazymax/swarm-cronjob"
+      "imagePattern": "crazymax/swarm-cronjob",
+      "entitlement": "ADDON_BACKUP"
     },
     {
       "id": "backup-influxdb",
       "name": "InfluxDB Backup",
       "category": "Backup",
-      "license": "bsl",
+      "license": "proprietary",
       "status": "ready",
       "type": "cronjob",
       "serviceName": "backup-influxdb",
       "stackFile": "docker-stack.backup.yml",
-      "imagePattern": "influxdb"
+      "imagePattern": "influxdb",
+      "entitlement": "ADDON_BACKUP"
     },
     {
       "id": "backup-postgres",
       "name": "Postgres Backup",
       "category": "Backup",
-      "license": "bsl",
+      "license": "proprietary",
       "status": "ready",
       "type": "cronjob",
       "serviceName": "backup-postgres",
       "stackFile": "docker-stack.backup.yml",
-      "imagePattern": "postgres"
+      "imagePattern": "postgres",
+      "entitlement": "ADDON_BACKUP"
     },
     {
       "id": "backup-volumes",
       "name": "Volumes Backup",
       "category": "Backup",
-      "license": "bsl",
+      "license": "proprietary",
       "status": "ready",
       "type": "cronjob",
       "serviceName": "backup-volumes",
       "stackFile": "docker-stack.backup.yml",
-      "imagePattern": "backup-volumes"
+      "imagePattern": "backup-volumes",
+      "entitlement": "ADDON_BACKUP"
     },
     {
       "id": "grafana-databridge",

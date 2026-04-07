@@ -106,11 +106,11 @@ function StatusDashboard(): React.ReactElement {
           {daysRemaining !== undefined && Number.isFinite(daysRemaining) && plan !== "community" && (
             <Text dimColor> · {daysRemaining} day{daysRemaining > 1 ? "s" : ""} remaining</Text>
           )}
-          {isGracePeriod && (
-            <Text color="yellow"> · GRACE PERIOD</Text>
-          )}
-          {!isLicenseValid && plan !== "community" && !isGracePeriod && (
+          {!licenseValid && plan !== "community" && (
             <Text color="red"> · INVALID</Text>
+          )}
+          {!licenseOnline && plan !== "community" && (
+            <Text color="yellow"> · OFFLINE</Text>
           )}
         </Box>
         {updatesAvailable > 0 && (
