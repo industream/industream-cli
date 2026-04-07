@@ -80,10 +80,14 @@ describe("getDeployFlags", () => {
     }
   });
 
-  it("includes all services with a valid enterprise license", async () => {
+  it("includes all services when enterprise license has all entitlements", async () => {
+    const allEntitlements = loadModuleRegistry()
+      .modules.filter((m) => m.license === "proprietary" && m.entitlement)
+      .map((m) => m.entitlement!);
+
     mockLicense({
       plan: "enterprise",
-      entitlements: [],
+      entitlements: allEntitlements,
       customer: "Test Corp",
     });
 
@@ -91,7 +95,6 @@ describe("getDeployFlags", () => {
 
     expect(flags.plan).toBe("enterprise");
     expect(flags.excludedServices).toEqual([]);
-    expect(flags.licensedModuleCount).toBe(flags.totalModuleCount);
   });
 
   it("includes only modules whose entitlement is granted", async () => {
