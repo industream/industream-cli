@@ -5,10 +5,13 @@ import { Banner } from "../components/Banner.js";
 import { ServiceTable } from "../components/ServiceTable.js";
 import { getSwarmServices, isSwarmActive } from "../lib/docker.js";
 import { loadConfig } from "../lib/config.js";
+import { loadModuleRegistry, type Module } from "../lib/modules.js";
+import { getLatestVersions } from "../lib/release-tracker.js";
 
 function StatusDashboard(): React.ReactElement {
   const { exit } = useApp();
   const [services, setServices] = useState<Awaited<ReturnType<typeof getSwarmServices>>>([]);
+  const [modules, setModules] = useState<Module[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -23,8 +26,19 @@ function StatusDashboard(): React.ReactElement {
           setLoading(false);
           return;
         }
-        const result = await getSwarmServices(stackName);
+        const [result, registry, latestVersions] = await Promise.all([
+          getSwarmServices(stackName),
+          loadModuleRegistry(),
+          getLatestVersions(),
+        ]);
+        if (latestVersions) {
+          for (const service of result) {
+            const latest = latestVersions.get(service.imageName);
+            if (latest) service.latestVersion = latest;
+          }
+        }
         setServices(result);
+        setModules(registry);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to get status");
       } finally {
@@ -51,7 +65,7 @@ function StatusDashboard(): React.ReactElement {
   return (
     <Box flexDirection="column">
       <Banner />
-      <ServiceTable services={services} />
+      <ServiceTable services={services} modules={modules} />
       <Box marginTop={1}>
         <Text dimColor>
           {running}/{services.length} services running — press q to quit

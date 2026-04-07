@@ -24,8 +24,28 @@ export interface SwarmService {
   fullName: string;
   replicas: string;
   image: string;
+  imageName: string;
   version: string;
   isRunning: boolean;
+  uptime?: string;
+  latestVersion?: string;
+}
+
+// Extract the image name (last path segment, without tag/digest)
+// e.g. "842775dh.c1.gra9.container-registry.ovh.net/flowmaker.core/cdn-cache:2.0.2" → "cdn-cache"
+export function parseImageName(image: string): string {
+  const withoutTag = image.split("@")[0].split(":")[0];
+  const segments = withoutTag.split("/");
+  return segments.at(-1) ?? "";
+}
+
+// Format a duration in seconds to a human-readable uptime
+export function formatUptime(seconds: number): string {
+  if (seconds < 0) return "-";
+  if (seconds < 60) return `${Math.floor(seconds)}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
 }
 
 export function parseServiceList(
@@ -48,6 +68,7 @@ export function parseServiceList(
         fullName,
         replicas,
         image,
+        imageName: parseImageName(image),
         version: parseImageVersion(image),
         isRunning: running > 0 && running === total,
       };
@@ -69,7 +90,35 @@ export async function getSwarmServices(
     "--format",
     "{{.Name}} {{.Replicas}} {{.Image}}",
   ]);
-  return parseServiceList(stdout, stackName);
+  const services = parseServiceList(stdout, stackName);
+
+  // Fetch uptime for each running service via docker service ps
+  await Promise.all(
+    services.map(async (service) => {
+      if (!service.isRunning) return;
+      try {
+        const { stdout: psOutput } = await execa(DOCKER, [
+          "service",
+          "ps",
+          service.fullName,
+          "--filter",
+          "desired-state=running",
+          "--format",
+          "{{.CurrentState}}",
+          "--no-trunc",
+        ]);
+        // "Running 2 hours ago" → extract the duration
+        const match = psOutput.split("\n")[0]?.match(/Running (.+) ago/);
+        if (match) {
+          service.uptime = match[1].trim();
+        }
+      } catch {
+        // ignore
+      }
+    }),
+  );
+
+  return services;
 }
 
 export async function isSwarmActive(): Promise<boolean> {
