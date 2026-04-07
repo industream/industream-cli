@@ -126,33 +126,17 @@ const ENTITLEMENTS = [
 // =============================================================================
 // POLICY → ENTITLEMENTS mapping
 // =============================================================================
+// Tag bundles do NOT include premium modules by default. Premium modules are
+// add-ons that must be attached individually to each license. Only Trial gets
+// everything unlocked (for evaluation purposes).
 const POLICY_ENTITLEMENTS: Record<string, string[]> = {
   Community: [],
   "Trial 90 days": ENTITLEMENTS.map((e) => e.code), // all unlocked during trial
   "Starter 25 tags": [],
-  "Standard 100 tags": ["MODULE_OPC_UA", "MODULE_S7", "MODULE_MS_SQL"],
-  "Professional 500 tags": [
-    "MODULE_OPC_UA",
-    "MODULE_S7",
-    "MODULE_RTSP",
-    "MODULE_GSTREAMER",
-    "MODULE_MS_SQL",
-    "MODULE_TIMESCALE_DB",
-  ],
-  "Business 1000 tags": [
-    "MODULE_OPC_UA",
-    "MODULE_S7",
-    "MODULE_RTSP",
-    "MODULE_GSTREAMER",
-    "MODULE_AUDIO",
-    "MODULE_LENADA",
-    "MODULE_MS_SQL",
-    "MODULE_TIMESCALE_DB",
-    "MODULE_AI_STUDIO",
-    "MODULE_EDGE_AI",
-    "MODULE_AI_REGISTRY",
-  ],
-  "Enterprise 5000 tags": ENTITLEMENTS.map((e) => e.code),
+  "Standard 100 tags": [],
+  "Professional 500 tags": [],
+  "Business 1000 tags": [],
+  "Enterprise 5000 tags": [],
 };
 
 // =============================================================================

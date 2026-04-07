@@ -7,17 +7,15 @@ import { getSwarmServices, isSwarmActive } from "../lib/docker.js";
 import { loadConfig } from "../lib/config.js";
 import { loadModuleRegistry, type Module } from "../lib/modules.js";
 import { getLatestVersions, isLatest } from "../lib/release-tracker.js";
-import {
-  loadLicenseFromDisk,
-  validateLicense,
-  type LicenseResult,
-} from "../lib/license.js";
+import { validateLicenseWithKeygen, type CachedLicense } from "../lib/keygen.js";
 
 function StatusDashboard(): React.ReactElement {
   const { exit } = useApp();
   const [services, setServices] = useState<Awaited<ReturnType<typeof getSwarmServices>>>([]);
   const [modules, setModules] = useState<Module[]>([]);
-  const [license, setLicense] = useState<LicenseResult | null>(null);
+  const [licenseCache, setLicenseCache] = useState<CachedLicense | null>(null);
+  const [licenseOnline, setLicenseOnline] = useState(false);
+  const [licenseValid, setLicenseValid] = useState(false);
   const [updatesAvailable, setUpdatesAvailable] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,11 +31,11 @@ function StatusDashboard(): React.ReactElement {
           setLoading(false);
           return;
         }
-        const [result, registry, latestVersions, licenseToken] = await Promise.all([
+        const [result, registry, latestVersions, licenseResult] = await Promise.all([
           getSwarmServices(stackName),
           loadModuleRegistry(),
           getLatestVersions(),
-          loadLicenseFromDisk(),
+          validateLicenseWithKeygen(),
         ]);
         let updateCount = 0;
         if (latestVersions) {
@@ -54,8 +52,9 @@ function StatusDashboard(): React.ReactElement {
             }
           }
         }
-        const licenseResult = await validateLicense(licenseToken);
-        setLicense(licenseResult);
+        setLicenseCache(licenseResult.cache);
+        setLicenseOnline(licenseResult.online);
+        setLicenseValid(licenseResult.valid);
         setUpdatesAvailable(updateCount);
         setServices(result);
         setModules(registry.modules);
@@ -81,14 +80,16 @@ function StatusDashboard(): React.ReactElement {
   }
 
   const running = services.filter((s) => s.isRunning).length;
-  const plan = license?.payload?.plan ?? "community";
+  const plan = licenseCache?.plan ?? "community";
   const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
-  const customer = license?.payload?.customer;
-  const daysRemaining = license?.daysRemaining;
-  const isLicenseValid = license?.isValid ?? false;
-  const isGracePeriod = license?.isGracePeriod ?? false;
+  const customer = licenseCache?.customer;
+  const expiry = licenseCache?.response.data?.attributes.expiry;
+  const daysRemaining = expiry
+    ? Math.floor((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : undefined;
   const planColor =
-    plan === "community" ? "gray" : isGracePeriod ? "yellow" : isLicenseValid ? "green" : "red";
+    plan === "community" ? "gray" : licenseValid ? "green" : "red";
+  const entitlementCount = licenseCache?.entitlements.length ?? 0;
 
   return (
     <Box flexDirection="column">

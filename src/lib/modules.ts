@@ -13,6 +13,8 @@ export interface Module {
   serviceName?: string;
   stackFile?: string;
   imagePattern?: string;
+  /** Keygen entitlement code required to enable this module (proprietary only) */
+  entitlement?: string;
 }
 
 export interface ModuleRegistry {

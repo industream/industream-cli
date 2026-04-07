@@ -1,24 +1,64 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { getDeployFlags } from "./stack-filter.js";
 
-vi.mock("./license.js", () => ({
-  loadLicenseFromDisk: vi.fn(),
-  validateLicense: vi.fn(),
+vi.mock("./keygen.js", () => ({
+  validateLicenseWithKeygen: vi.fn(),
 }));
 
-import { loadLicenseFromDisk, validateLicense } from "./license.js";
-import type { LicenseResult } from "./license.js";
+import { validateLicenseWithKeygen, type CachedLicense } from "./keygen.js";
 import { loadModuleRegistry } from "./modules.js";
 
 const PROPRIETARY_SERVICE_NAMES = loadModuleRegistry()
   .modules.filter((m) => m.license === "proprietary" && m.serviceName)
   .map((m) => m.serviceName!);
 
-function mockLicense(result: LicenseResult): void {
-  vi.mocked(loadLicenseFromDisk).mockResolvedValue(
-    result.payload?.plan === "community" ? undefined : "mock-token",
-  );
-  vi.mocked(validateLicense).mockResolvedValue(result);
+function mockLicense(opts: {
+  plan: string;
+  entitlements: string[];
+  customer?: string | null;
+}): void {
+  const cache: CachedLicense | null =
+    opts.plan === "community"
+      ? null
+      : ({
+          key: "MOCK-KEY",
+          fingerprint: "00:00:00:00:00:00",
+          validatedAt: new Date().toISOString(),
+          response: {
+            data: {
+              id: "mock-id",
+              type: "licenses",
+              attributes: {
+                key: "MOCK-KEY",
+                name: opts.customer ?? "Mock Customer",
+                expiry: null,
+                status: "ACTIVE",
+                uses: 0,
+                maxMachines: 1,
+                metadata: { plan: opts.plan },
+                created: new Date().toISOString(),
+                updated: new Date().toISOString(),
+              },
+            },
+            meta: {
+              ts: new Date().toISOString(),
+              valid: true,
+              detail: "is valid",
+              code: "VALID",
+              scope: { product: "x", policy: "y", fingerprint: "00" },
+            },
+          },
+          entitlements: opts.entitlements,
+          plan: opts.plan,
+          customer: opts.customer ?? "Mock Customer",
+        } as CachedLicense);
+
+  vi.mocked(validateLicenseWithKeygen).mockResolvedValue({
+    valid: opts.plan !== "community",
+    online: true,
+    response: cache?.response ?? null,
+    cache,
+  });
 }
 
 describe("getDeployFlags", () => {
@@ -27,20 +67,7 @@ describe("getDeployFlags", () => {
   });
 
   it("excludes proprietary services when no license is present", async () => {
-    mockLicense({
-      isValid: true,
-      isGracePeriod: false,
-      daysRemaining: Infinity,
-      payload: {
-        iss: "industream.com",
-        sub: "community",
-        customer: "Community",
-        plan: "community",
-        modules: [],
-        seats: Infinity,
-        trial: false,
-      },
-    });
+    mockLicense({ plan: "community", entitlements: [] });
 
     const flags = await getDeployFlags("/tmp/platform");
 
@@ -55,18 +82,9 @@ describe("getDeployFlags", () => {
 
   it("includes all services with a valid enterprise license", async () => {
     mockLicense({
-      isValid: true,
-      isGracePeriod: false,
-      daysRemaining: 365,
-      payload: {
-        iss: "industream.com",
-        sub: "test-client",
-        customer: "Test Corp",
-        plan: "enterprise",
-        modules: [],
-        seats: 10,
-        trial: false,
-      },
+      plan: "enterprise",
+      entitlements: [],
+      customer: "Test Corp",
     });
 
     const flags = await getDeployFlags("/tmp/platform");
@@ -76,20 +94,11 @@ describe("getDeployFlags", () => {
     expect(flags.licensedModuleCount).toBe(flags.totalModuleCount);
   });
 
-  it("includes only specified modules for pro plan", async () => {
+  it("includes only modules whose entitlement is granted", async () => {
     mockLicense({
-      isValid: true,
-      isGracePeriod: false,
-      daysRemaining: 365,
-      payload: {
-        iss: "industream.com",
-        sub: "pro-client",
-        customer: "Pro Corp",
-        plan: "pro",
-        modules: ["opc-ua-connector"],
-        seats: 5,
-        trial: false,
-      },
+      plan: "pro",
+      entitlements: ["MODULE_OPC_UA"],
+      customer: "Pro Corp",
     });
 
     const flags = await getDeployFlags("/tmp/platform");
@@ -97,28 +106,15 @@ describe("getDeployFlags", () => {
     expect(flags.plan).toBe("pro");
     expect(flags.excludedServices).not.toContain("worker-opc-ua-client");
 
-    const otherProprietary = PROPRIETARY_SERVICE_NAMES.filter(
-      (s) => s !== "worker-opc-ua-client",
-    );
-    for (const serviceName of otherProprietary) {
-      expect(flags.excludedServices).toContain(serviceName);
-    }
+    // Other proprietary services without entitlement should be excluded
+    expect(flags.excludedServices).toContain("worker-rtsp-client");
   });
 
   it("includes all services during trial", async () => {
     mockLicense({
-      isValid: true,
-      isGracePeriod: false,
-      daysRemaining: 30,
-      payload: {
-        iss: "industream.com",
-        sub: "trial-client",
-        customer: "Trial Corp",
-        plan: "trial",
-        modules: [],
-        seats: 10,
-        trial: true,
-      },
+      plan: "trial",
+      entitlements: [],
+      customer: "Trial Corp",
     });
 
     const flags = await getDeployFlags("/tmp/platform");

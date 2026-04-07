@@ -37,7 +37,7 @@
       "id": "user-tenant-management",
       "name": "User & tenant management",
       "category": "Platform",
-      "license": "proprietary",
+      "license": "bsl",
       "status": "ready",
       "serviceName": "keycloak",
       "stackFile": "docker-stack.yml",
@@ -103,7 +103,7 @@
       "id": "flowmaker-designer",
       "name": "FlowMaker Designer",
       "category": "Platform",
-      "license": "proprietary",
+      "license": "bsl",
       "status": "ready",
       "serviceName": "flowmaker-frontend",
       "stackFile": "docker-stack.flowmaker.yml",
@@ -192,7 +192,8 @@
       "status": "ready",
       "serviceName": "timescaledb",
       "stackFile": "docker-stack.data.yml",
-      "imagePattern": "timescale/timescaledb"
+      "imagePattern": "timescale/timescaledb",
+      "entitlement": "MODULE_TIMESCALE_DB"
     },
     {
       "id": "postgresql-connector",
@@ -212,7 +213,8 @@
       "status": "ready",
       "serviceName": "databridge-timescaledb",
       "stackFile": "docker-stack.data.yml",
-      "imagePattern": "timeseries/api"
+      "imagePattern": "timeseries/api",
+      "entitlement": "MODULE_TIMESCALE_DB"
     },
     {
       "id": "mqtt-connector",
@@ -252,7 +254,8 @@
       "status": "ready",
       "serviceName": "worker-opc-ua-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-opc-ua-client"
+      "imagePattern": "flowmaker.boxes/flow-box-opc-ua-client",
+      "entitlement": "MODULE_OPC_UA"
     },
     {
       "id": "rtsp-connector",
@@ -262,7 +265,8 @@
       "status": "ready",
       "serviceName": "worker-rtsp-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-rtsp-client"
+      "imagePattern": "flowmaker.boxes/flow-box-rtsp-client",
+      "entitlement": "MODULE_RTSP"
     },
     {
       "id": "minio-connector",
@@ -408,7 +412,7 @@
       "id": "equation-solver",
       "name": "Equation Solver (Simplex)",
       "category": "Workers",
-      "license": "proprietary",
+      "license": "bsl",
       "status": "ready",
       "serviceName": "equation-solver",
       "stackFile": "docker-stack.workers.yml",
@@ -418,7 +422,7 @@
       "id": "worker-luminosity-box",
       "name": "Luminosity box worker",
       "category": "Workers",
-      "license": "proprietary",
+      "license": "bsl",
       "status": "ready",
       "serviceName": "worker-luminosity-box",
       "stackFile": "docker-stack.workers.yml",

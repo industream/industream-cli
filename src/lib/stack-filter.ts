@@ -1,39 +1,36 @@
-import { loadModuleRegistry, isModuleLicensed, type Plan } from "./modules.js";
-import { loadLicenseFromDisk, validateLicense } from "./license.js";
+// src/lib/stack-filter.ts
+// Determines which services should be excluded from a deploy based on
+// the active Keygen license and its entitlements.
+import { loadModuleRegistry, type Module } from "./modules.js";
+import { validateLicenseWithKeygen } from "./keygen.js";
 
 export interface DeployFlags {
   plan: string;
+  customer: string | null;
   licensedModuleCount: number;
   totalModuleCount: number;
   excludedServices: string[];
+  entitlements: string[];
+  online: boolean;
+  valid: boolean;
 }
 
 export async function getDeployFlags(
-  platformDir: string,
+  _platformDir: string,
 ): Promise<DeployFlags> {
   const registry = loadModuleRegistry();
-  const token = await loadLicenseFromDisk();
-  const license = await validateLicense(token);
+  const result = await validateLicenseWithKeygen();
 
-  const plan: Plan = license.payload?.plan ?? "community";
-  const licensedModuleIds = license.payload?.modules ?? [];
+  const plan = result.cache?.plan ?? "community";
+  const customer = result.cache?.customer ?? null;
+  const entitlements = result.cache?.entitlements ?? [];
 
-  const deployableModules = registry.modules.filter(
-    (module) => module.serviceName,
-  );
-
+  const deployableModules = registry.modules.filter((m) => m.serviceName);
   const excludedServices: string[] = [];
   let licensedModuleCount = 0;
 
   for (const module of deployableModules) {
-    const isLicensed = isModuleLicensed(
-      registry,
-      module.id,
-      plan,
-      licensedModuleIds,
-    );
-
-    if (isLicensed) {
+    if (isModuleAllowed(module, plan, entitlements)) {
       licensedModuleCount++;
     } else if (module.serviceName) {
       excludedServices.push(module.serviceName);
@@ -42,8 +39,28 @@ export async function getDeployFlags(
 
   return {
     plan,
+    customer,
     licensedModuleCount,
     totalModuleCount: deployableModules.length,
     excludedServices,
+    entitlements,
+    online: result.online,
+    valid: result.valid,
   };
+}
+
+/**
+ * Check whether a module is allowed under the current plan and entitlements.
+ * BSL/Apache modules are always allowed. Proprietary modules require either
+ * the trial/enterprise plan or an explicit entitlement.
+ */
+export function isModuleAllowed(
+  module: Module,
+  plan: string,
+  entitlements: string[],
+): boolean {
+  if (module.license === "bsl" || module.license === "apache") return true;
+  if (plan === "enterprise" || plan === "trial") return true;
+  if (!module.entitlement) return false;
+  return entitlements.includes(module.entitlement);
 }
