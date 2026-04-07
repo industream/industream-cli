@@ -71,7 +71,7 @@ const POLICIES = [
     name: "Business 1000 tags",
     duration: 365 * 24 * 60 * 60,
     maxMachines: 2,
-    floating: false,
+    floating: true,
     strict: true,
     metadata: { plan: "business", tagsLimit: 1000 },
   },
@@ -321,7 +321,9 @@ async function bootstrap(): Promise<void> {
   console.log("");
   console.log("Done. Your Keygen account is ready.");
   console.log("");
-  console.log(`Created: ${ENTITLEMENTS.length} entitlements, ${POLICIES.length} policies`);
+  console.log(
+    `Existing: ${entitlementByCode.size}/${ENTITLEMENTS.length} entitlements, ${policyByName.size}/${POLICIES.length} policies`,
+  );
 }
 
 bootstrap().catch((err) => {
