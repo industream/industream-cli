@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { render, Text, Box, useApp } from "ink";
 import { BoltAnimated } from "../components/BoltAnimated.js";
+import { BoltBuilder } from "../components/BoltBuilder.js";
 import { Banner } from "../components/Banner.js";
 import { ModuleSelector } from "../components/ModuleSelector.js";
 import { saveConfig } from "../lib/config.js";
@@ -101,6 +102,7 @@ async function runScript(
 
 function InstallWizard(): React.ReactElement {
   const { exit } = useApp();
+  const [introDone, setIntroDone] = useState(false);
   const [step, setStep] = useState<Step>("prerequisites");
   const [statusMessage, setStatusMessage] = useState("Checking prerequisites...");
   const [progressLine, setProgressLine] = useState("");
@@ -111,6 +113,7 @@ function InstallWizard(): React.ReactElement {
   const platformDirectory = "~/industream-platform";
 
   useEffect(() => {
+    if (!introDone) return;
     async function runInstall() {
       try {
         // Step 1: Prerequisites
@@ -274,11 +277,20 @@ function InstallWizard(): React.ReactElement {
       }
     }
     runInstall();
-  }, []);
+  }, [introDone]);
 
   const isDone = step === "done";
   const isError = step === "error";
   const isDancing = !isError;
+
+  // Show the building intro before the install starts
+  if (!introDone) {
+    return (
+      <Box flexDirection="column">
+        <BoltBuilder duration={5000} onComplete={() => setIntroDone(true)} />
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column">

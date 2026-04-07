@@ -133,7 +133,7 @@ export function BoltAnimated({
     <Box flexDirection="column" alignItems="center">
       <Box flexDirection="column">
         {currentFrame.map((line, index) => (
-          <Text key={index} color="cyan">
+          <Text key={index} color="blue">
             {line}
           </Text>
         ))}
@@ -142,7 +142,7 @@ export function BoltAnimated({
         <Box marginTop={1}>
           <Text bold>
             {"  "}
-            <Text color="cyan">Bolt:</Text> <Text dimColor>"{currentMessage}"</Text>
+            <Text color="blue">Bolt:</Text> <Text dimColor>"{currentMessage}"</Text>
           </Text>
         </Box>
       )}
