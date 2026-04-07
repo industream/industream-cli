@@ -6,12 +6,19 @@ import { ServiceTable } from "../components/ServiceTable.js";
 import { getSwarmServices, isSwarmActive } from "../lib/docker.js";
 import { loadConfig } from "../lib/config.js";
 import { loadModuleRegistry, type Module } from "../lib/modules.js";
-import { getLatestVersions } from "../lib/release-tracker.js";
+import { getLatestVersions, isLatest } from "../lib/release-tracker.js";
+import {
+  loadLicenseFromDisk,
+  validateLicense,
+  type LicenseResult,
+} from "../lib/license.js";
 
 function StatusDashboard(): React.ReactElement {
   const { exit } = useApp();
   const [services, setServices] = useState<Awaited<ReturnType<typeof getSwarmServices>>>([]);
   const [modules, setModules] = useState<Module[]>([]);
+  const [license, setLicense] = useState<LicenseResult | null>(null);
+  const [updatesAvailable, setUpdatesAvailable] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -26,17 +33,30 @@ function StatusDashboard(): React.ReactElement {
           setLoading(false);
           return;
         }
-        const [result, registry, latestVersions] = await Promise.all([
+        const [result, registry, latestVersions, licenseToken] = await Promise.all([
           getSwarmServices(stackName),
           loadModuleRegistry(),
           getLatestVersions(),
+          loadLicenseFromDisk(),
         ]);
+        let updateCount = 0;
         if (latestVersions) {
           for (const service of result) {
             const latest = latestVersions.get(service.imageName);
-            if (latest) service.latestVersion = latest;
+            if (latest) {
+              service.latestVersion = latest;
+              if (
+                service.version !== "latest" &&
+                !isLatest(service.version, latest)
+              ) {
+                updateCount++;
+              }
+            }
           }
         }
+        const licenseResult = await validateLicense(licenseToken);
+        setLicense(licenseResult);
+        setUpdatesAvailable(updateCount);
         setServices(result);
         setModules(registry.modules);
       } catch (err) {
@@ -61,10 +81,53 @@ function StatusDashboard(): React.ReactElement {
   }
 
   const running = services.filter((s) => s.isRunning).length;
+  const plan = license?.payload?.plan ?? "community";
+  const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+  const customer = license?.payload?.customer;
+  const daysRemaining = license?.daysRemaining;
+  const isLicenseValid = license?.isValid ?? false;
+  const isGracePeriod = license?.isGracePeriod ?? false;
+  const planColor =
+    plan === "community" ? "gray" : isGracePeriod ? "yellow" : isLicenseValid ? "green" : "red";
 
   return (
     <Box flexDirection="column">
       <Banner />
+      <Box flexDirection="column" marginBottom={1}>
+        <Box>
+          <Text bold>License: </Text>
+          <Text color={planColor} bold>
+            {planLabel}
+          </Text>
+          {customer && customer !== "Community" && (
+            <Text dimColor> · {customer}</Text>
+          )}
+          {daysRemaining !== undefined && Number.isFinite(daysRemaining) && plan !== "community" && (
+            <Text dimColor> · {daysRemaining} day{daysRemaining > 1 ? "s" : ""} remaining</Text>
+          )}
+          {isGracePeriod && (
+            <Text color="yellow"> · GRACE PERIOD</Text>
+          )}
+          {!isLicenseValid && plan !== "community" && !isGracePeriod && (
+            <Text color="red"> · INVALID</Text>
+          )}
+        </Box>
+        {updatesAvailable > 0 && (
+          <Box>
+            <Text bold>Updates: </Text>
+            <Text color="yellow" bold>
+              {updatesAvailable}
+            </Text>
+            <Text dimColor> service{updatesAvailable > 1 ? "s" : ""} have a new version available</Text>
+          </Box>
+        )}
+        {updatesAvailable === 0 && (
+          <Box>
+            <Text bold>Updates: </Text>
+            <Text color="green">All services up to date</Text>
+          </Box>
+        )}
+      </Box>
       <ServiceTable services={services} modules={modules} />
       <Box marginTop={1}>
         <Text dimColor>
