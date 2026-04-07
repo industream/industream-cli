@@ -215,16 +215,13 @@ export async function activateLicense(key: string): Promise<KeygenValidationResp
     return response;
   }
 
-  // Save key + fetch entitlements + policy + cache the response
+  // Save key + fetch entitlements + cache the response
   await mkdir(LICENSE_DIR, { recursive: true });
   await writeFile(LICENSE_KEY_FILE, key, "utf-8");
 
-  const [entitlements, policy] = response.data
-    ? await Promise.all([
-        fetchLicenseEntitlements(response.data.id, key),
-        fetchLicensePolicy(response.data.id, key),
-      ])
-    : [[], null];
+  const entitlements = response.data
+    ? await fetchLicenseEntitlements(response.data.id, key)
+    : [];
 
   const cache: CachedLicense = {
     key,
@@ -232,12 +229,23 @@ export async function activateLicense(key: string): Promise<KeygenValidationResp
     validatedAt: new Date().toISOString(),
     response,
     entitlements,
-    plan: policy?.plan ?? "community",
+    plan: extractPlanFromLicense(response),
     customer: (response.data?.attributes.name as string) ?? null,
   };
   await writeFile(LICENSE_CACHE_FILE, JSON.stringify(cache, null, 2), "utf-8");
 
   return response;
+}
+
+/**
+ * Read the plan name from the license's own metadata. This is set when the
+ * license is created (or synced via scripts/sync-license-metadata.ts).
+ */
+function extractPlanFromLicense(response: KeygenValidationResponse): string {
+  const meta = response.data?.attributes.metadata as
+    | { plan?: string }
+    | undefined;
+  return meta?.plan ?? "community";
 }
 
 /**
@@ -339,19 +347,16 @@ export async function validateLicenseWithKeygen(
     // Cache successful validation
     if (response.meta.valid) {
       await mkdir(LICENSE_DIR, { recursive: true });
-      const [entitlements, policy] = response.data
-        ? await Promise.all([
-            fetchLicenseEntitlements(response.data.id, licenseKey),
-            fetchLicensePolicy(response.data.id, licenseKey),
-          ])
-        : [[], null];
+      const entitlements = response.data
+        ? await fetchLicenseEntitlements(response.data.id, licenseKey)
+        : [];
       const cache: CachedLicense = {
         key: licenseKey,
         fingerprint,
         validatedAt: new Date().toISOString(),
         response,
         entitlements,
-        plan: policy?.plan ?? "community",
+        plan: extractPlanFromLicense(response),
         customer: (response.data?.attributes.name as string) ?? null,
       };
       await writeFile(LICENSE_CACHE_FILE, JSON.stringify(cache, null, 2), "utf-8");
