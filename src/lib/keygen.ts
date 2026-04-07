@@ -2,7 +2,7 @@
 // Wrapper around the Keygen.sh REST API for license validation
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { homedir, networkInterfaces } from "node:os";
+import { homedir, hostname, networkInterfaces, platform } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
@@ -156,22 +156,38 @@ function extractPlan(response: KeygenValidationResponse): string {
 
 /**
  * Activate a license: validate it online and cache the result locally.
+ * Automatically registers the current machine if the license requires it.
  */
 export async function activateLicense(key: string): Promise<KeygenValidationResponse> {
   const fingerprint = getMachineFingerprint();
-  const response = await validateKeyOnline(key, fingerprint);
+  let response = await validateKeyOnline(key, fingerprint);
 
-  if (!response.meta.valid && response.meta.code !== "NO_MACHINE" && response.meta.code !== "NO_MACHINES") {
-    return response;
+  // License needs a machine registration — do it, then re-validate
+  const needsMachine =
+    response.meta.code === "NO_MACHINE" || response.meta.code === "NO_MACHINES";
+  if (needsMachine && response.data) {
+    const activationResult = await activateMachine(
+      key,
+      response.data.id,
+      fingerprint,
+    );
+    if (!activationResult.ok) {
+      return {
+        data: response.data,
+        meta: {
+          ts: new Date().toISOString(),
+          valid: false,
+          detail: `Machine registration failed: ${activationResult.error}`,
+          code: "ACTIVATION_FAILED",
+          scope: { product: KEYGEN_PRODUCT, policy: "", fingerprint },
+        },
+      };
+    }
+    response = await validateKeyOnline(key, fingerprint);
   }
 
-  // If license requires a machine, register this one
-  if (response.meta.code === "NO_MACHINE" || response.meta.code === "NO_MACHINES") {
-    if (response.data) {
-      await activateMachine(key, response.data.id, fingerprint);
-      // Re-validate after activation
-      return validateKeyOnline(key, fingerprint);
-    }
+  if (!response.meta.valid) {
+    return response;
   }
 
   // Save key + fetch entitlements + cache the response
@@ -198,31 +214,52 @@ export async function activateLicense(key: string): Promise<KeygenValidationResp
 
 /**
  * Register a machine with a license (required for strict licenses).
+ * Returns { ok: true } on success or { ok: false, error: "..." } on failure.
  */
 async function activateMachine(
   key: string,
   licenseId: string,
   fingerprint: string,
-): Promise<void> {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const url = `${KEYGEN_API}/accounts/${KEYGEN_ACCOUNT}/machines`;
-  await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/vnd.api+json",
-      Accept: "application/vnd.api+json",
-      Authorization: `License ${key}`,
-    },
-    body: JSON.stringify({
-      data: {
-        type: "machines",
-        attributes: { fingerprint },
-        relationships: {
-          license: { data: { type: "licenses", id: licenseId } },
-        },
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/vnd.api+json",
+        Accept: "application/vnd.api+json",
+        Authorization: `License ${key}`,
       },
-    }),
-    signal: AbortSignal.timeout(10000),
-  });
+      body: JSON.stringify({
+        data: {
+          type: "machines",
+          attributes: {
+            fingerprint,
+            name: hostname(),
+            platform: platform(),
+          },
+          relationships: {
+            license: { data: { type: "licenses", id: licenseId } },
+          },
+        },
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (response.ok) return { ok: true };
+
+    const body = (await response.json()) as {
+      errors?: Array<{ title: string; detail: string }>;
+    };
+    const errorMsg =
+      body.errors?.[0]?.detail ?? `HTTP ${response.status}`;
+    return { ok: false, error: errorMsg };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 /**
