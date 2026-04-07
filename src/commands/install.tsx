@@ -181,20 +181,12 @@ function InstallWizard(): React.ReactElement {
         // Step 4: Setup
         setStep("setup");
 
-        // Check Docker registry login
+        // Check / setup Docker registry login
         setStatusMessage("Checking registry access...");
         setProgressLine("");
         const dockerRegistry = "842775dh.c1.gra9.container-registry.ovh.net";
-        const { stdout: authConfig } = await execa("docker", ["system", "info", "--format", "{{json .RegistryConfig}}"]).catch(() => ({ stdout: "" }));
-        const isLoggedIn = authConfig.includes(dockerRegistry) ||
-          (await execa("cat", [`${process.env.HOME}/.docker/config.json`]).then(
-            (r) => r.stdout.includes(dockerRegistry),
-          ).catch(() => false));
-        if (!isLoggedIn) {
-          throw new Error(
-            `Not logged in to Docker registry.\nRun first: docker login ${dockerRegistry}\nThen re-run: industream install`,
-          );
-        }
+        const { ensureRegistryLogin } = await import("../lib/registry-login.js");
+        await ensureRegistryLogin(dockerRegistry, currentPlan);
 
         setStatusMessage("Deploying Traefik...");
         setProgressLine("");
@@ -224,6 +216,11 @@ function InstallWizard(): React.ReactElement {
         const deployFlags = await getDeployFlags(resolved);
         if (deployFlags.excludedServices.length > 0) {
           deployArgs.push("--exclude", deployFlags.excludedServices.join(","));
+        }
+        if (currentPlan === "community") {
+          // Community mode: load .env.community overrides to redirect
+          // image paths to the flowmaker.community public project
+          deployArgs.push("--community");
         }
         // Pass "y" to stdin for any interactive prompts (registry login, continue, etc.)
         const deployProcess = execa(

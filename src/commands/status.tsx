@@ -100,6 +100,9 @@ function StatusDashboard(): React.ReactElement {
           <Text color={planColor} bold>
             {planLabel}
           </Text>
+          <Text dimColor>
+            {plan === "community" ? " · BSL 1.1 (free)" : " · Commercial"}
+          </Text>
           {customer && customer !== "Community" && (
             <Text dimColor> · {customer}</Text>
           )}
@@ -130,9 +133,12 @@ function StatusDashboard(): React.ReactElement {
         )}
       </Box>
       <ServiceTable services={services} modules={modules} />
-      <Box marginTop={1}>
+      <Box marginTop={1} flexDirection="column">
         <Text dimColor>
           {running}/{services.length} services running — press q to quit
+        </Text>
+        <Text dimColor>
+          BSL 1.1 — commercial use requires a license · https://industream.com/license
         </Text>
       </Box>
     </Box>
