@@ -273,9 +273,12 @@ function InstallWizard(): React.ReactElement {
 
         setStep("done");
         setProgressLine("");
+        // Let user see the success message, then exit
+        setTimeout(() => exit(), 3000);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setStep("error");
+        setTimeout(() => exit(), 3000);
       }
     }
     runInstall();
