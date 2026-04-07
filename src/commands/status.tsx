@@ -38,7 +38,7 @@ function StatusDashboard(): React.ReactElement {
           }
         }
         setServices(result);
-        setModules(registry);
+        setModules(registry.modules);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to get status");
       } finally {
