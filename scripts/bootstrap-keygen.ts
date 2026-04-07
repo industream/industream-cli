@@ -270,6 +270,11 @@ async function bootstrap(): Promise<void> {
       .filter((id): id is string => Boolean(id))
       .map((id) => ({ type: "entitlements", id }));
 
+    if (data.length === 0) {
+      console.log(`  ! ${policyName}: no resolvable entitlements (missing permissions?)`);
+      continue;
+    }
+
     const result = await api(
       `/policies/${policyId}/entitlements`,
       "POST",
