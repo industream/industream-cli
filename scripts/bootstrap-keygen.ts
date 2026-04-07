@@ -112,12 +112,13 @@ const ENTITLEMENTS = [
 // POLICY → ENTITLEMENTS mapping
 // =============================================================================
 // All commercial tag bundles include PRODUCT_DATACATALOG by default (it IS the
-// product being sold). Other entitlements (AI Studio, MCP, Backup, packages)
-// are sold separately and must be attached to each license individually.
-// Trial gets everything unlocked for evaluation.
+// product being sold). Trial gets the 3 main products (DataCatalog, AI Studio,
+// MCP) for evaluation. Process packages (IronStream, ArcStream, FlowGuard,
+// Monitoring) and add-ons (Backup, Redundant) are NEVER attached to a policy
+// — they must be attached to individual licenses after a signed contract.
 const POLICY_ENTITLEMENTS: Record<string, string[]> = {
   Community: [],
-  "Trial 90 days": ENTITLEMENTS.map((e) => e.code), // all unlocked during trial
+  "Trial 90 days": ["PRODUCT_DATACATALOG", "PRODUCT_AI_STUDIO", "PRODUCT_MCP"],
   "Starter 25 tags": ["PRODUCT_DATACATALOG"],
   "Standard 100 tags": ["PRODUCT_DATACATALOG"],
   "Professional 500 tags": ["PRODUCT_DATACATALOG"],
@@ -251,46 +252,70 @@ async function bootstrap(): Promise<void> {
     console.log(`  + ${pol.name}`);
   }
 
-  // 3. Attach entitlements to policies
+  // 3. Reconcile entitlements on each policy (add missing, remove extra)
   console.log("");
-  console.log("Attaching entitlements to policies...");
-  for (const [policyName, entitlementCodes] of Object.entries(POLICY_ENTITLEMENTS)) {
+  console.log("Syncing entitlements on policies...");
+  for (const [policyName, desiredCodes] of Object.entries(POLICY_ENTITLEMENTS)) {
     const policyId = policyByName.get(policyName);
     if (!policyId) {
       console.log(`  ! ${policyName}: policy not found, skipping`);
       continue;
     }
-    if (entitlementCodes.length === 0) {
-      console.log(`  ${policyName}: no entitlements`);
-      continue;
-    }
 
-    const data = entitlementCodes
-      .map((code) => entitlementByCode.get(code))
-      .filter((id): id is string => Boolean(id))
-      .map((id) => ({ type: "entitlements", id }));
-
-    if (data.length === 0) {
-      console.log(`  ! ${policyName}: no resolvable entitlements (missing permissions?)`);
-      continue;
-    }
-
-    const result = await api(
-      `/policies/${policyId}/entitlements`,
-      "POST",
-      { data },
+    // Fetch currently attached entitlements
+    const currentResult = await api(`/policies/${policyId}/entitlements`);
+    const currentList = (currentResult.data as ApiResource[] | undefined) ?? [];
+    const currentByCode = new Map<string, string>(
+      currentList.map((e) => [e.attributes.code as string, e.id]),
     );
-    if (result.errors) {
-      // 409 = already attached, not a real error
-      const detail = result.errors[0]?.detail ?? "";
-      if (detail.includes("already")) {
-        console.log(`  = ${policyName}: ${data.length} entitlements (already attached)`);
+
+    const desiredSet = new Set(desiredCodes);
+    const currentSet = new Set(currentByCode.keys());
+
+    const toAdd = [...desiredSet].filter((code) => !currentSet.has(code));
+    const toRemove = [...currentSet].filter((code) => !desiredSet.has(code));
+
+    // Detach entitlements that should not be on this policy
+    if (toRemove.length > 0) {
+      const removeData = toRemove
+        .map((code) => currentByCode.get(code))
+        .filter((id): id is string => Boolean(id))
+        .map((id) => ({ type: "entitlements", id }));
+      const result = await api(
+        `/policies/${policyId}/entitlements`,
+        "DELETE",
+        { data: removeData },
+      );
+      if (result.errors) {
+        console.error(`  ✗ ${policyName} detach: ${result.errors[0]?.detail}`);
       } else {
-        console.error(`  ✗ ${policyName}: ${detail}`);
+        console.log(`  − ${policyName}: removed ${toRemove.join(", ")}`);
       }
-      continue;
     }
-    console.log(`  + ${policyName}: ${data.length} entitlements`);
+
+    // Attach entitlements that are missing
+    if (toAdd.length > 0) {
+      const addData = toAdd
+        .map((code) => entitlementByCode.get(code))
+        .filter((id): id is string => Boolean(id))
+        .map((id) => ({ type: "entitlements", id }));
+      if (addData.length > 0) {
+        const result = await api(
+          `/policies/${policyId}/entitlements`,
+          "POST",
+          { data: addData },
+        );
+        if (result.errors) {
+          console.error(`  ✗ ${policyName} attach: ${result.errors[0]?.detail}`);
+        } else {
+          console.log(`  + ${policyName}: added ${toAdd.join(", ")}`);
+        }
+      }
+    }
+
+    if (toAdd.length === 0 && toRemove.length === 0) {
+      console.log(`  = ${policyName}: ${desiredCodes.length} entitlements (in sync)`);
+    }
   }
 
   console.log("");
