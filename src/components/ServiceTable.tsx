@@ -15,7 +15,8 @@ const CATEGORY_ORDER = [
   "Workers (BSL 1.1)",
   "Workers (Premium)",
   "Platform",
-  "DataBridge",
+  "DataBridge (BSL 1.1)",
+  "DataBridge (Premium)",
   "DataCatalog",
   "Monitoring",
   "Backup",
@@ -37,15 +38,18 @@ function isProprietary(serviceName: string, modules: Module[]): boolean {
   return getModuleForService(serviceName, modules)?.license === "proprietary";
 }
 
+// Categories that should be split into BSL/Premium subgroups
+const SPLIT_CATEGORIES = new Set(["Workers", "DataBridge"]);
+
 function getCategoryForService(
   serviceName: string,
   modules: Module[],
 ): string {
   const module = getModuleForService(serviceName, modules);
   if (!module) return "Other";
-  // Split Workers into BSL (free) and Premium based on license
-  if (module.category === "Workers") {
-    return module.license === "proprietary" ? "Workers (Premium)" : "Workers (BSL 1.1)";
+  if (SPLIT_CATEGORIES.has(module.category)) {
+    const suffix = module.license === "proprietary" ? "Premium" : "BSL 1.1";
+    return `${module.category} (${suffix})`;
   }
   return module.category;
 }
