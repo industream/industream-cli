@@ -11,10 +11,9 @@ interface ServiceTableProps {
 }
 
 const CATEGORY_ORDER = [
-  "FlowMaker",
+  "Platform",
   "Workers (BSL 1.1)",
   "Workers (Premium)",
-  "Platform",
   "DataBridge (BSL 1.1)",
   "DataBridge (Premium)",
   "DataCatalog",
@@ -27,7 +26,16 @@ function getModuleForService(
   serviceName: string,
   modules: Module[],
 ): Module | undefined {
-  return modules.find((m) => m.serviceName === serviceName);
+  // Prefer module with subcategory (more specific) over generic one
+  const matches = modules.filter((m) => m.serviceName === serviceName);
+  return matches.find((m) => m.subcategory) ?? matches[0];
+}
+
+function getSubcategoryForService(
+  serviceName: string,
+  modules: Module[],
+): string | undefined {
+  return getModuleForService(serviceName, modules)?.subcategory;
 }
 
 function isCronjob(serviceName: string, modules: Module[]): boolean {
@@ -119,24 +127,56 @@ export function ServiceTable({
       </Box>
       {sortedCategories.map((category) => {
         const categoryServices = groups.get(category) ?? [];
-        // Count only non-cronjob services in the running tally
         const realServices = categoryServices.filter(
           (s) => !isCronjob(s.name, modules),
         );
         const runningCount = realServices.filter((s) => s.isRunning).length;
+
+        // Group services by subcategory within this category
+        const subgroups = new Map<string, SwarmService[]>();
+        for (const svc of categoryServices) {
+          const sub = getSubcategoryForService(svc.name, modules) ?? "__none__";
+          const list = subgroups.get(sub) ?? [];
+          list.push(svc);
+          subgroups.set(sub, list);
+        }
+
+        const hasSubcategories = subgroups.size > 1 || !subgroups.has("__none__");
+
         return (
           <Box key={category} flexDirection="column" marginTop={1}>
             <Text bold color="blue">
               ── {category} ({runningCount}/{realServices.length}) ──
             </Text>
-            {categoryServices.map((service) => (
-              <ServiceRow
-                key={service.name}
-                service={service}
-                isLocked={lockedModuleIds.includes(service.name)}
-                isCronjob={isCronjob(service.name, modules)}
-              />
-            ))}
+            {hasSubcategories
+              ? Array.from(subgroups.entries())
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([sub, svcs]) => (
+                    <Box key={sub} flexDirection="column" marginTop={sub === "__none__" ? 0 : 1}>
+                      {sub !== "__none__" && (
+                        <Text color="cyan" dimColor>
+                          {"  ▸ "}{sub}
+                        </Text>
+                      )}
+                      {svcs.map((service) => (
+                        <ServiceRow
+                          key={service.name}
+                          service={service}
+                          isLocked={lockedModuleIds.includes(service.name)}
+                          isCronjob={isCronjob(service.name, modules)}
+                          indent={sub !== "__none__"}
+                        />
+                      ))}
+                    </Box>
+                  ))
+              : categoryServices.map((service) => (
+                  <ServiceRow
+                    key={service.name}
+                    service={service}
+                    isLocked={lockedModuleIds.includes(service.name)}
+                    isCronjob={isCronjob(service.name, modules)}
+                  />
+                ))}
           </Box>
         );
       })}
@@ -148,10 +188,12 @@ function ServiceRow({
   service,
   isLocked,
   isCronjob = false,
+  indent = false,
 }: {
   service: SwarmService;
   isLocked: boolean;
   isCronjob?: boolean;
+  indent?: boolean;
 }): React.ReactElement {
   const statusIcon = isLocked
     ? "🔒"
@@ -186,10 +228,13 @@ function ServiceRow({
       : service.version;
   const versionColor = hasUpdate ? "yellow" : undefined;
 
+  const prefix = indent ? "    " : "";
+
   return (
     <Box>
       <Box width={32}>
         <Text>
+          {prefix}
           <Text color={statusColor}>{statusIcon}</Text> {service.name}
         </Text>
       </Box>

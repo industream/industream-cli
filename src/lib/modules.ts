@@ -6,6 +6,7 @@ export interface Module {
   id: string;
   name: string;
   category: string;
+  subcategory?: string;
   license: "bsl" | "proprietary" | "apache";
   status: "ready" | "coming-soon" | "under-test" | "on-request";
   type?: "service" | "cronjob";

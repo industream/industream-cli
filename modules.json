@@ -8,7 +8,8 @@
       "status": "ready",
       "serviceName": "flowmaker-scheduler",
       "stackFile": "docker-stack.flowmaker.yml",
-      "imagePattern": "flowmaker.core/flowmaker-launcher"
+      "imagePattern": "flowmaker.core/flowmaker-launcher",
+      "subcategory": "Tools"
     },
     {
       "id": "ui-fusion",
@@ -18,7 +19,8 @@
       "status": "ready",
       "serviceName": "uifusion",
       "stackFile": "docker-stack.yml",
-      "imagePattern": "uifusion/ui"
+      "imagePattern": "uifusion/ui",
+      "subcategory": "Tools"
     },
     {
       "id": "uifusion-api",
@@ -28,7 +30,8 @@
       "status": "ready",
       "serviceName": "uifusion-api",
       "stackFile": "docker-stack.yml",
-      "imagePattern": "uifusion/api"
+      "imagePattern": "uifusion/api",
+      "subcategory": "Tools"
     },
     {
       "id": "user-tenant-management",
@@ -38,7 +41,8 @@
       "status": "ready",
       "serviceName": "keycloak",
       "stackFile": "docker-stack.yml",
-      "imagePattern": "keycloak/keycloak"
+      "imagePattern": "keycloak/keycloak",
+      "subcategory": "Tools"
     },
     {
       "id": "dashboard-alerting",
@@ -48,7 +52,8 @@
       "status": "ready",
       "serviceName": "grafana",
       "stackFile": "docker-stack.monitoring.yml",
-      "imagePattern": "grafana/grafana-industream"
+      "imagePattern": "grafana/grafana-industream",
+      "subcategory": "Tools"
     },
     {
       "id": "postgres",
@@ -58,7 +63,8 @@
       "status": "ready",
       "serviceName": "postgres",
       "stackFile": "docker-stack.yml",
-      "imagePattern": "postgres"
+      "imagePattern": "postgres",
+      "subcategory": "Tools"
     },
     {
       "id": "traefik",
@@ -68,7 +74,8 @@
       "status": "ready",
       "serviceName": "traefik",
       "stackFile": "docker-stack.traefik.yml",
-      "imagePattern": "traefik"
+      "imagePattern": "traefik",
+      "subcategory": "Tools"
     },
     {
       "id": "minio",
@@ -78,47 +85,52 @@
       "status": "ready",
       "serviceName": "minio",
       "stackFile": "docker-stack.yml",
-      "imagePattern": "minio/minio"
+      "imagePattern": "minio/minio",
+      "subcategory": "Tools"
     },
     {
       "id": "flowmaker-core-engine",
       "name": "FlowMaker core engine",
-      "category": "FlowMaker",
+      "category": "Platform",
       "license": "bsl",
       "status": "ready",
       "serviceName": "flowmaker-scheduler",
       "stackFile": "docker-stack.flowmaker.yml",
-      "imagePattern": "flowmaker.core/flowmaker-launcher"
+      "imagePattern": "flowmaker.core/flowmaker-launcher",
+      "subcategory": "FlowMaker"
     },
     {
       "id": "flowmaker-designer",
       "name": "FlowMaker Designer",
-      "category": "FlowMaker",
+      "category": "Platform",
       "license": "proprietary",
       "status": "ready",
       "serviceName": "flowmaker-frontend",
       "stackFile": "docker-stack.flowmaker.yml",
-      "imagePattern": "flowmaker.core/flowmaker-front"
+      "imagePattern": "flowmaker.core/flowmaker-front",
+      "subcategory": "FlowMaker"
     },
     {
       "id": "flowmaker-confighub",
       "name": "FlowMaker ConfigHub",
-      "category": "FlowMaker",
+      "category": "Platform",
       "license": "bsl",
       "status": "ready",
       "serviceName": "flowmaker-confighub",
       "stackFile": "docker-stack.flowmaker.yml",
-      "imagePattern": "flowmaker.core/flowmaker-confighub-v2"
+      "imagePattern": "flowmaker.core/flowmaker-confighub-v2",
+      "subcategory": "FlowMaker"
     },
     {
       "id": "flowmaker-logging",
       "name": "FlowMaker Logging",
-      "category": "FlowMaker",
+      "category": "Platform",
       "license": "bsl",
       "status": "ready",
       "serviceName": "flowmaker-logging",
       "stackFile": "docker-stack.flowmaker.yml",
-      "imagePattern": "flowmaker.core/flowmaker-logger"
+      "imagePattern": "flowmaker.core/flowmaker-logger",
+      "subcategory": "FlowMaker"
     },
     {
       "id": "worker-manager",
@@ -133,22 +145,24 @@
     {
       "id": "cdn-server",
       "name": "CDN Server (Verdaccio)",
-      "category": "FlowMaker",
+      "category": "Platform",
       "license": "bsl",
       "status": "ready",
       "serviceName": "cdn-server",
       "stackFile": "docker-stack.cdn.yml",
-      "imagePattern": "flowmaker.core/cdn-server"
+      "imagePattern": "flowmaker.core/cdn-server",
+      "subcategory": "FlowMaker"
     },
     {
       "id": "cdn-cache",
       "name": "CDN Cache (ESM.sh)",
-      "category": "FlowMaker",
+      "category": "Platform",
       "license": "bsl",
       "status": "ready",
       "serviceName": "cdn-cache",
       "stackFile": "docker-stack.cdn.yml",
-      "imagePattern": "flowmaker.core/cdn-cache"
+      "imagePattern": "flowmaker.core/cdn-cache",
+      "subcategory": "FlowMaker"
     },
     {
       "id": "databridge-core",
