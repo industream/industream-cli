@@ -175,8 +175,8 @@ function InstallWizard(): React.ReactElement {
           );
         }
 
-        // Brief pause so user can read the module summary
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Pause so user can read the module summary and configuration
+        await new Promise((resolve) => setTimeout(resolve, 5000));
 
         // Step 4: Setup
         setStep("setup");
@@ -204,6 +204,7 @@ function InstallWizard(): React.ReactElement {
           resolved,
           (line) => setProgressLine(line),
         );
+        await new Promise((resolve) => setTimeout(resolve, 1500));
 
         setStatusMessage("Creating secrets...");
         setProgressLine("");
@@ -213,6 +214,7 @@ function InstallWizard(): React.ReactElement {
           resolved,
           (line) => setProgressLine(line),
         );
+        await new Promise((resolve) => setTimeout(resolve, 1500));
 
         setStatusMessage("Deploying platform stack...");
         setProgressLine("");
