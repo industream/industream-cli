@@ -273,8 +273,13 @@ function InstallWizard(): React.ReactElement {
 
         setStep("done");
         setProgressLine("");
-        // Let user see the success message, then exit
-        setTimeout(() => exit(), 3000);
+        // Let user see the success message, exit, then launch status
+        setTimeout(async () => {
+          exit();
+          // Wait a tick for Ink to fully unmount, then run status
+          const { runStatus } = await import("./status.js");
+          setTimeout(() => runStatus(), 200);
+        }, 2000);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setStep("error");
