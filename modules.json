@@ -422,11 +422,12 @@
       "id": "worker-luminosity-box",
       "name": "Luminosity box worker",
       "category": "Workers",
-      "license": "bsl",
+      "license": "proprietary",
       "status": "ready",
       "serviceName": "worker-luminosity-box",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-luminosity-box"
+      "imagePattern": "flowmaker.boxes/flow-box-luminosity-box",
+      "entitlement": "PRODUCT_DATACATALOG"
     },
     {
       "id": "prometheus",
@@ -552,6 +553,28 @@
       "category": "Ecosystem",
       "license": "apache",
       "status": "ready"
+    },
+    {
+      "id": "gstreamer-connector",
+      "name": "GStreamer connector",
+      "category": "Workers",
+      "license": "proprietary",
+      "status": "ready",
+      "serviceName": "worker-gstreamer-client",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-gstreamer-client",
+      "entitlement": "PRODUCT_DATACATALOG"
+    },
+    {
+      "id": "audio-connector",
+      "name": "Audio connector",
+      "category": "Workers",
+      "license": "proprietary",
+      "status": "coming-soon",
+      "serviceName": "worker-audio-client",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-audio-client",
+      "entitlement": "PRODUCT_DATACATALOG"
     }
   ]
 }
