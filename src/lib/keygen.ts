@@ -118,6 +118,40 @@ export async function validateKeyOnline(
 }
 
 /**
+ * Fetch the policy details for a license — including its metadata (plan name).
+ */
+export async function fetchLicensePolicy(
+  licenseId: string,
+  key: string,
+): Promise<{ name: string; plan: string } | null> {
+  const url = `${KEYGEN_API}/accounts/${KEYGEN_ACCOUNT}/licenses/${licenseId}/policy`;
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/vnd.api+json",
+        Authorization: `License ${key}`,
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as {
+      data: {
+        attributes: {
+          name: string;
+          metadata?: { plan?: string };
+        };
+      };
+    };
+    return {
+      name: body.data.attributes.name,
+      plan: body.data.attributes.metadata?.plan ?? "community",
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch the entitlements attached to a license (via its policy).
  * Returns the list of entitlement codes (e.g. ["MODULE_OPC_UA", "MODULE_S7"]).
  */
@@ -144,15 +178,6 @@ export async function fetchLicenseEntitlements(
   }
 }
 
-/**
- * Extract plan name from license response (via policy metadata).
- */
-function extractPlan(response: KeygenValidationResponse): string {
-  const meta = response.data?.attributes.metadata as
-    | { plan?: string }
-    | undefined;
-  return meta?.plan ?? "community";
-}
 
 /**
  * Activate a license: validate it online and cache the result locally.
@@ -190,13 +215,16 @@ export async function activateLicense(key: string): Promise<KeygenValidationResp
     return response;
   }
 
-  // Save key + fetch entitlements + cache the response
+  // Save key + fetch entitlements + policy + cache the response
   await mkdir(LICENSE_DIR, { recursive: true });
   await writeFile(LICENSE_KEY_FILE, key, "utf-8");
 
-  const entitlements = response.data
-    ? await fetchLicenseEntitlements(response.data.id, key)
-    : [];
+  const [entitlements, policy] = response.data
+    ? await Promise.all([
+        fetchLicenseEntitlements(response.data.id, key),
+        fetchLicensePolicy(response.data.id, key),
+      ])
+    : [[], null];
 
   const cache: CachedLicense = {
     key,
@@ -204,7 +232,7 @@ export async function activateLicense(key: string): Promise<KeygenValidationResp
     validatedAt: new Date().toISOString(),
     response,
     entitlements,
-    plan: extractPlan(response),
+    plan: policy?.plan ?? "community",
     customer: (response.data?.attributes.name as string) ?? null,
   };
   await writeFile(LICENSE_CACHE_FILE, JSON.stringify(cache, null, 2), "utf-8");
@@ -311,16 +339,19 @@ export async function validateLicenseWithKeygen(
     // Cache successful validation
     if (response.meta.valid) {
       await mkdir(LICENSE_DIR, { recursive: true });
-      const entitlements = response.data
-        ? await fetchLicenseEntitlements(response.data.id, licenseKey)
-        : [];
+      const [entitlements, policy] = response.data
+        ? await Promise.all([
+            fetchLicenseEntitlements(response.data.id, licenseKey),
+            fetchLicensePolicy(response.data.id, licenseKey),
+          ])
+        : [[], null];
       const cache: CachedLicense = {
         key: licenseKey,
         fingerprint,
         validatedAt: new Date().toISOString(),
         response,
         entitlements,
-        plan: extractPlan(response),
+        plan: policy?.plan ?? "community",
         customer: (response.data?.attributes.name as string) ?? null,
       };
       await writeFile(LICENSE_CACHE_FILE, JSON.stringify(cache, null, 2), "utf-8");
