@@ -272,7 +272,9 @@ async function main(): Promise<void> {
   console.log(`Host: ${HARBOR_HOST}`);
 
   await ensureProject();
-  await ensureReplicationRule();
+  // NOTE: Harbor does not support local → local replication rules, so image
+  // copying is handled by scripts/sync-harbor-community.ts instead.
+  // await ensureReplicationRule();
   await ensureRobotAccount();
 
   console.log(``);
