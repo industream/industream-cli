@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { render, Text, Box, useApp } from "ink";
+import { render, Text, Box, useApp, useInput } from "ink";
 import { BoltAnimated } from "../components/BoltAnimated.js";
 import { BoltBuilder } from "../components/BoltBuilder.js";
 import { Banner } from "../components/Banner.js";
@@ -273,13 +273,6 @@ function InstallWizard(): React.ReactElement {
 
         setStep("done");
         setProgressLine("");
-        // Let user see the success message, exit, then launch status
-        setTimeout(async () => {
-          exit();
-          // Wait a tick for Ink to fully unmount, then run status
-          const { runStatus } = await import("./status.js");
-          setTimeout(() => runStatus(), 200);
-        }, 2000);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setStep("error");
@@ -288,6 +281,17 @@ function InstallWizard(): React.ReactElement {
     }
     runInstall();
   }, [introDone]);
+
+  // When done, any key press exits and launches status
+  useInput(
+    async (_input, _key) => {
+      if (step !== "done") return;
+      exit();
+      const { runStatus } = await import("./status.js");
+      setTimeout(() => runStatus(), 200);
+    },
+    { isActive: step === "done" },
+  );
 
   const isDone = step === "done";
   const isError = step === "error";
@@ -319,7 +323,9 @@ function InstallWizard(): React.ReactElement {
           {modulesSummary.length > 0 && (
             <Text dimColor>{modulesSummary}</Text>
           )}
-          <Text dimColor>Run `industream status` to check your platform.</Text>
+          <Box marginTop={1}>
+            <Text color="blue">Press any key to view platform status...</Text>
+          </Box>
         </Box>
       )}
       {!isDone && !isError && (
