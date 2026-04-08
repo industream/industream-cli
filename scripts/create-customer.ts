@@ -110,7 +110,7 @@ async function harborApi(
 
 async function keygenApi(
   path: string,
-  method: "GET" | "POST" = "GET",
+  method: "GET" | "POST" | "PATCH" = "GET",
   body?: unknown,
 ): Promise<{ status: number; body: unknown }> {
   const response = await fetch(`${KEYGEN_API}${path}`, {
@@ -235,13 +235,17 @@ async function createLicense(
     },
     ...policyMeta,
   };
-  await keygenApi(`/licenses/${license.id}`, "POST", {
-    // Keygen uses PATCH via POST with override
+  const patchResult = await keygenApi(`/licenses/${license.id}`, "PATCH", {
     data: {
       type: "licenses",
       attributes: { metadata: mergedMetadata },
     },
   });
+  if (patchResult.status !== 200) {
+    console.error(`  ✗ Failed to merge metadata:`, patchResult.body);
+  } else {
+    console.log(`  ✓ Merged policy metadata (plan=${mergedMetadata.plan ?? "?"})`);
+  }
 
   // Attach add-on entitlements
   if (addons.length > 0) {
