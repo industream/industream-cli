@@ -433,61 +433,67 @@
       "id": "prometheus",
       "name": "Prometheus monitoring",
       "category": "Monitoring",
-      "license": "bsl",
+      "license": "proprietary",
       "status": "ready",
       "serviceName": "prometheus",
       "stackFile": "docker-stack.monitoring.yml",
-      "imagePattern": "prom/prometheus"
+      "imagePattern": "prom/prometheus",
+      "entitlement": "ADDON_BACKUP"
     },
     {
       "id": "alertmanager",
       "name": "Alertmanager",
       "category": "Monitoring",
-      "license": "bsl",
+      "license": "proprietary",
       "status": "ready",
       "serviceName": "alertmanager",
       "stackFile": "docker-stack.monitoring.yml",
-      "imagePattern": "prom/alertmanager"
+      "imagePattern": "prom/alertmanager",
+      "entitlement": "ADDON_BACKUP"
     },
     {
       "id": "node-exporter",
       "name": "Node Exporter",
       "category": "Monitoring",
-      "license": "bsl",
+      "license": "proprietary",
       "status": "ready",
       "serviceName": "node-exporter",
       "stackFile": "docker-stack.monitoring.yml",
-      "imagePattern": "prom/node-exporter"
+      "imagePattern": "prom/node-exporter",
+      "entitlement": "ADDON_BACKUP"
     },
     {
       "id": "cadvisor",
       "name": "cAdvisor",
       "category": "Monitoring",
-      "license": "bsl",
+      "license": "proprietary",
       "status": "ready",
       "serviceName": "cadvisor",
       "stackFile": "docker-stack.monitoring.yml",
-      "imagePattern": "monitoring/cadvisor"
+      "imagePattern": "monitoring/cadvisor",
+      "entitlement": "ADDON_BACKUP"
     },
     {
       "id": "postgres-exporter",
       "name": "PostgreSQL Exporter",
       "category": "Monitoring",
-      "license": "bsl",
+      "license": "proprietary",
       "status": "ready",
       "serviceName": "postgres-exporter",
       "stackFile": "docker-stack.monitoring.yml",
-      "imagePattern": "prometheuscommunity/postgres-exporter"
+      "imagePattern": "prometheuscommunity/postgres-exporter",
+      "entitlement": "ADDON_BACKUP"
     },
     {
       "id": "ntfy",
       "name": "Ntfy push notifications",
       "category": "Monitoring",
-      "license": "bsl",
+      "license": "proprietary",
       "status": "ready",
       "serviceName": "ntfy",
       "stackFile": "docker-stack.monitoring.yml",
-      "imagePattern": "binwiederhier/ntfy"
+      "imagePattern": "binwiederhier/ntfy",
+      "entitlement": "ADDON_BACKUP"
     },
     {
       "id": "backup-monitor",
