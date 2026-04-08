@@ -32,55 +32,66 @@ const COMMUNITY_PROJECT = "flowmaker.community";
 // Keep only the N most recent artifacts per image (by push_time).
 // Override with --keep=N
 const KEEP_ARG = process.argv.find((a) => a.startsWith("--keep="));
-const KEEP_RECENT = KEEP_ARG ? parseInt(KEEP_ARG.split("=")[1], 10) : 1;
+const KEEP_RECENT = KEEP_ARG ? parseInt(KEEP_ARG.split("=")[1], 10) : 5;
 
-// Images to sync: source path → destination sub-path inside flowmaker.community
-// This organizes the community project into logical groups (core/, workers/, etc.)
-// Harbor allows slashes in repo names, giving the illusion of sub-projects.
-const BSL_IMAGES: Array<{ source: string; destSubPath: string }> = [
-  // ===== core =====
-  { source: "flowmaker.core/cdn-cache", destSubPath: "core/cdn-cache" },
-  { source: "flowmaker.core/cdn-server", destSubPath: "core/cdn-server" },
-  { source: "flowmaker.core/cdn-helper", destSubPath: "core/cdn-helper" },
-  { source: "flowmaker.core/etcd3-browser", destSubPath: "core/etcd3-browser" },
-  { source: "flowmaker.core/flowmaker-confighub", destSubPath: "core/flowmaker-confighub" },
-  { source: "flowmaker.core/flowmaker-confighub-v2", destSubPath: "core/flowmaker-confighub-v2" },
-  { source: "flowmaker.core/flowmaker-front", destSubPath: "core/flowmaker-front" },
-  { source: "flowmaker.core/flowmaker-launcher", destSubPath: "core/flowmaker-launcher" },
-  { source: "flowmaker.core/flowmaker-logger", destSubPath: "core/flowmaker-logger" },
-  { source: "flowmaker.core/flowmaker-runtime", destSubPath: "core/flowmaker-runtime" },
+// Images to sync: each entry is the source path. The destination preserves
+// the full source path under `flowmaker.community/`, so:
+//   flowmaker.core/cdn-cache → flowmaker.community/flowmaker.core/cdn-cache
+// This way, in community mode the deploy script just prepends
+// `flowmaker.community/` to all image paths and everything resolves.
+const BSL_IMAGES: string[] = [
+  // ===== flowmaker.core =====
+  "flowmaker.core/cdn-cache",
+  "flowmaker.core/cdn-server",
+  "flowmaker.core/cdn-helper",
+  "flowmaker.core/etcd3-browser",
+  "flowmaker.core/flowmaker-confighub",
+  "flowmaker.core/flowmaker-confighub-v2",
+  "flowmaker.core/flowmaker-front",
+  "flowmaker.core/flowmaker-launcher",
+  "flowmaker.core/flowmaker-logger",
+  "flowmaker.core/flowmaker-runtime",
 
-  // ===== workers (BSL only) =====
-  { source: "flowmaker.boxes/flow-box-mqtt-client", destSubPath: "workers/flow-box-mqtt-client" },
-  { source: "flowmaker.boxes/flow-box-modbus-tcp", destSubPath: "workers/flow-box-modbus-tcp" },
-  { source: "flowmaker.boxes/flow-box-http-client", destSubPath: "workers/flow-box-http-client" },
-  { source: "flowmaker.boxes/flow-box-http", destSubPath: "workers/flow-box-http" },
-  { source: "flowmaker.boxes/flow-box-postgres-client", destSubPath: "workers/flow-box-postgres-client" },
-  { source: "flowmaker.boxes/flow-box-influx-client", destSubPath: "workers/flow-box-influx-client" },
-  { source: "flowmaker.boxes/flow-box-timer", destSubPath: "workers/flow-box-timer" },
-  { source: "flowmaker.boxes/flow-box-data-logger", destSubPath: "workers/flow-box-data-logger" },
-  { source: "flowmaker.boxes/flow-box-test-data-generator", destSubPath: "workers/flow-box-test-data-generator" },
-  { source: "flowmaker.boxes/flow-box-conditional-dataset-validator", destSubPath: "workers/flow-box-conditional-dataset-validator" },
-  { source: "flowmaker.boxes/flow-box-enqueue", destSubPath: "workers/flow-box-enqueue" },
-  { source: "flowmaker.boxes/flow-box-equation-solver", destSubPath: "workers/flow-box-equation-solver" },
-  { source: "flowmaker.boxes/flow-box-js-expression", destSubPath: "workers/flow-box-js-expression" },
-  { source: "flowmaker.boxes/flow-box-notification", destSubPath: "workers/flow-box-notification" },
-  { source: "flowmaker.boxes/flow-box-notifications", destSubPath: "workers/flow-box-notifications" },
-  { source: "flowmaker.boxes/flow-box-minio-sink", destSubPath: "workers/flow-box-minio-sink" },
-  { source: "flowmaker.boxes/flow-box-datacatalog-mapper", destSubPath: "workers/flow-box-datacatalog-mapper" },
-  { source: "flowmaker.boxes/flow-box-timeseries-workers", destSubPath: "workers/flow-box-timeseries-workers" },
+  // ===== flowmaker.boxes (BSL only) =====
+  "flowmaker.boxes/flow-box-mqtt-client",
+  "flowmaker.boxes/flow-box-modbus-tcp",
+  "flowmaker.boxes/flow-box-http-client",
+  "flowmaker.boxes/flow-box-http",
+  "flowmaker.boxes/flow-box-postgres-client",
+  "flowmaker.boxes/flow-box-influx-client",
+  "flowmaker.boxes/flow-box-timer",
+  "flowmaker.boxes/flow-box-data-logger",
+  "flowmaker.boxes/flow-box-test-data-generator",
+  "flowmaker.boxes/flow-box-conditional-dataset-validator",
+  "flowmaker.boxes/flow-box-enqueue",
+  "flowmaker.boxes/flow-box-equation-solver",
+  "flowmaker.boxes/flow-box-js-expression",
+  "flowmaker.boxes/flow-box-notification",
+  "flowmaker.boxes/flow-box-notifications",
+  "flowmaker.boxes/flow-box-minio-sink",
+  "flowmaker.boxes/flow-box-datacatalog-mapper",
+  "flowmaker.boxes/flow-box-timeseries-workers",
 
-  // ===== infra =====
-  { source: "flowmaker.infra/flowmaker-worker-manager", destSubPath: "infra/flowmaker-worker-manager" },
+  // ===== flowmaker.infra =====
+  "flowmaker.infra/flowmaker-worker-manager",
 
-  // ===== data =====
-  { source: "datacatalog/api", destSubPath: "data/datacatalog-api" },
-  { source: "datacatalog/ui", destSubPath: "data/datacatalog-ui" },
-  { source: "datacatalog/uifusion", destSubPath: "data/uifusion" },
-  { source: "datacatalog/acquisition-schema-api", destSubPath: "data/acquisition-schema-api" },
+  // ===== datacatalog =====
+  "datacatalog/api",
+  "datacatalog/ui",
+  "datacatalog/acquisition-schema-api",
 
-  // ===== monitoring =====
-  { source: "grafana/grafana-industream", destSubPath: "monitoring/grafana-industream" },
+  // ===== uifusion =====
+  "uifusion/api",
+  "uifusion/ui",
+
+  // ===== timeseries (DataBridge core) =====
+  "timeseries/api",
+
+  // ===== grafana =====
+  "grafana/grafana-industream",
+
+  // ===== monitoring (cadvisor) =====
+  "monitoring/cadvisor",
 ];
 
 const authHeader = `Basic ${Buffer.from(`${USER}:${PASSWORD}`).toString("base64")}`;
@@ -146,10 +157,11 @@ async function main(): Promise<void> {
   let totalFailed = 0;
   let totalMissing = 0;
 
-  for (const { source, destSubPath } of BSL_IMAGES) {
+  for (const source of BSL_IMAGES) {
     const [sourceProject, ...repoParts] = source.split("/");
     const sourceRepo = repoParts.join("/");
-    const destName = destSubPath;
+    // Preserve full source path under flowmaker.community/
+    const destName = source;
 
     process.stdout.write(`  ${source} → ${COMMUNITY_PROJECT}/${destName} ... `);
 
