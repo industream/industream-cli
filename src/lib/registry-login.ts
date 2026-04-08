@@ -52,14 +52,18 @@ async function dockerLogin(
   secret: string,
 ): Promise<void> {
   try {
-    await execa(
-      "docker",
-      ["login", registry, "-u", username, "--password-stdin"],
-      { input: secret, stdio: ["pipe", "pipe", "pipe"] },
-    );
+    // Use the absolute path (PATH may be limited in sg sessions)
+    const dockerBin = "/usr/bin/docker";
+    await execa(dockerBin, ["login", registry, "-u", username, "--password-stdin"], {
+      input: secret,
+    });
   } catch (err) {
+    const errorMsg =
+      err instanceof Error
+        ? (err as Error & { stderr?: string }).stderr || err.message
+        : String(err);
     throw new Error(
-      `Failed to authenticate to Docker registry ${registry}: ${err instanceof Error ? err.message : String(err)}`,
+      `Failed to authenticate to Docker registry ${registry}:\n  ${errorMsg}`,
     );
   }
 }
