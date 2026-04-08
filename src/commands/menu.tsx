@@ -15,7 +15,7 @@ const MENU_ITEMS: MenuItem[] = [
   { key: "1", label: "Install", description: "Set up the platform", command: ["install"] },
   { key: "2", label: "Status", description: "View platform health", command: ["status"] },
   { key: "3", label: "Deploy", description: "Deploy an environment", command: ["deploy"] },
-  { key: "4", label: "Stop", description: "Stop an environment", command: ["stop"] },
+  { key: "4", label: "Down", description: "Bring environment down (keep data)", command: ["down"] },
   { key: "5", label: "Logs", description: "View service logs", command: ["logs"] },
   { key: "6", label: "Secrets", description: "Manage secrets", command: ["secrets"] },
   { key: "7", label: "Update", description: "Check for updates", command: ["update"] },

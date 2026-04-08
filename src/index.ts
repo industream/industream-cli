@@ -2,7 +2,7 @@
 import { Command } from "commander";
 import { runStatus } from "./commands/status.js";
 import { runDeploy } from "./commands/deploy.js";
-import { runStop } from "./commands/stop.js";
+import { runDown, runStop } from "./commands/stop.js";
 import { runLogs } from "./commands/logs.js";
 import { runSecrets } from "./commands/secrets.js";
 import { runInstall } from "./commands/install.js";
@@ -40,9 +40,17 @@ program
   });
 
 program
-  .command("stop")
-  .description("Stop an environment")
+  .command("down")
+  .description("Bring an environment down (data preserved)")
   .option("--env <environment>", "Environment to stop (prod, dev, staging)")
+  .action((options) => {
+    runDown(options.env);
+  });
+
+// Backward-compat: keep `stop` as alias for `down`
+program
+  .command("stop", { hidden: true })
+  .option("--env <environment>")
   .action((options) => {
     runStop(options.env);
   });
