@@ -1,34 +1,24 @@
 // src/lib/registry-login.ts
 // Manages docker login to the Industream Harbor registry.
 //
-// - Community users (no license or plan === "community"): logs in with
-//   an embedded public pull-only robot account that has access to the
-//   public `flowmaker.community` project only.
+// - Community users (no license or plan === "community"): no login needed,
+//   `flowmaker.community` is a public Harbor project with anonymous pull.
 // - Premium users (paid license): uses the Harbor credentials stored in
 //   their Keygen license metadata.
 import { execa } from "execa";
 import type { Plan } from "./modules.js";
 
-// =============================================================================
-// Community credentials — embedded public robot, pull-only on flowmaker.community
-// =============================================================================
-// These credentials are intentionally public. They give pull-only access to
-// the BSL-licensed images mirrored under `flowmaker.community/`. Rotating them
-// simply means pushing a new CLI release.
-const COMMUNITY_USERNAME = "robot$community-public";
-const COMMUNITY_SECRET = "b47KyO3MzeGc9QL8zfMf9daFDEfrC4qb";
-
 /**
  * Ensure the user is logged in to the Harbor registry appropriate for their
- * plan. Community users get auto-login with the public robot. Premium users
- * must have a valid license with credentials in its metadata.
+ * plan. Community users don't need authentication (public project). Premium
+ * users must have a valid license with credentials in its metadata.
  */
 export async function ensureRegistryLogin(
   registry: string,
   plan: Plan,
 ): Promise<void> {
   if (plan === "community") {
-    await loginCommunity(registry);
+    // Public project — anonymous pull works, no login required
     return;
   }
 
@@ -41,10 +31,6 @@ export async function ensureRegistryLogin(
     );
   }
   await dockerLogin(registry, credentials.username, credentials.secret);
-}
-
-async function loginCommunity(registry: string): Promise<void> {
-  await dockerLogin(registry, COMMUNITY_USERNAME, COMMUNITY_SECRET);
 }
 
 async function dockerLogin(
