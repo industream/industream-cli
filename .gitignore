@@ -3,3 +3,27 @@ dist/
 *.license
 .industream/
 keys/private.jwk.json
+
+# =============================================================================
+# Secrets & tokens — NEVER commit
+# =============================================================================
+.env
+.env.*
+!.env.example
+*.secret
+*.secrets
+secrets/
+tokens.txt
+*.token
+*.pem
+*.key
+!public.jwk.json
+!keys/public.jwk.json
+*credentials*
+!credentials.example.json
+
+# Local development
+.DS_Store
+*.log
+.vscode/settings.json
+.idea/
