@@ -101,6 +101,11 @@ const ENTITLEMENTS = [
   { code: "ADDON_BACKUP", name: "Backup & monitoring" },
   { code: "ADDON_REDUNDANT", name: "Redundant server (HA active/passive)" },
 
+  // Database add-ons (sold per-database)
+  { code: "ADDON_DB_TIMESCALE", name: "TimescaleDB (time-series database)" },
+  { code: "ADDON_DB_MSSQL", name: "MS SQL Server connector" },
+  { code: "ADDON_DB_OSISOFT", name: "OSIsoft PI connector" },
+
   // Process packages (quoted separately)
   { code: "PACKAGE_IRONSTREAM", name: "IronStream — Blast Furnace process package" },
   { code: "PACKAGE_ARCSTREAM", name: "ArcStream — EAF process package" },

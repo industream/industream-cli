@@ -193,7 +193,7 @@
       "serviceName": "timescaledb",
       "stackFile": "docker-stack.data.yml",
       "imagePattern": "timescale/timescaledb",
-      "entitlement": "PRODUCT_DATACATALOG"
+      "entitlement": "ADDON_DB_TIMESCALE"
     },
     {
       "id": "postgresql-connector",
@@ -214,7 +214,7 @@
       "serviceName": "databridge-timescaledb",
       "stackFile": "docker-stack.data.yml",
       "imagePattern": "timeseries/api",
-      "entitlement": "PRODUCT_DATACATALOG"
+      "entitlement": "ADDON_DB_TIMESCALE"
     },
     {
       "id": "mqtt-connector",
@@ -581,6 +581,28 @@
       "stackFile": "docker-stack.workers.yml",
       "imagePattern": "flowmaker.boxes/flow-box-audio-client",
       "entitlement": "PRODUCT_DATACATALOG"
+    },
+    {
+      "id": "ms-sql-connector",
+      "name": "MS SQL Server connector",
+      "category": "Workers",
+      "license": "proprietary",
+      "status": "ready",
+      "serviceName": "worker-mssql-client",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-mssql-client",
+      "entitlement": "ADDON_DB_MSSQL"
+    },
+    {
+      "id": "osisoft-pi-connector",
+      "name": "OSIsoft PI connector",
+      "category": "Workers",
+      "license": "proprietary",
+      "status": "on-request",
+      "serviceName": "worker-osisoft-pi-client",
+      "stackFile": "docker-stack.workers.yml",
+      "imagePattern": "flowmaker.boxes/flow-box-osisoft-pi-client",
+      "entitlement": "ADDON_DB_OSISOFT"
     }
   ]
 }

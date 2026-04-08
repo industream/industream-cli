@@ -12,7 +12,7 @@ import {
   loadEnvFile,
   resolvePlatformDir,
 } from "../lib/swarm-repo.js";
-import { loadLicenseFromDisk, validateLicense } from "../lib/license.js";
+import { validateLicenseWithKeygen } from "../lib/keygen.js";
 import { loadModuleRegistry, getModulesByLicense } from "../lib/modules.js";
 import type { Module, Plan } from "../lib/modules.js";
 import { execa } from "execa";
@@ -147,8 +147,7 @@ function InstallWizard(): React.ReactElement {
         setProgressLine("");
         setStatusMessage("Analyzing modules...");
 
-        const licenseToken = await loadLicenseFromDisk();
-        const licenseResult = await validateLicense(licenseToken);
+        const licenseResult = await validateLicenseWithKeygen();
         const moduleRegistry = loadModuleRegistry();
         const bslModules = getModulesByLicense(moduleRegistry, "bsl");
         const apacheModules = getModulesByLicense(moduleRegistry, "apache");
@@ -157,10 +156,10 @@ function InstallWizard(): React.ReactElement {
         const premiumCount = proprietaryModules.length;
         const totalCount = communityCount + premiumCount;
 
-        const plan = licenseResult.payload?.plan ?? "community";
+        const plan = (licenseResult.cache?.plan ?? "community") as Plan;
         setAllModules(moduleRegistry.modules);
-        setCurrentPlan(plan as Plan);
-        const isLicensed = licenseResult.isValid && plan !== "community";
+        setCurrentPlan(plan);
+        const isLicensed = licenseResult.valid && plan !== "community";
 
         if (isLicensed) {
           const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
@@ -186,7 +185,7 @@ function InstallWizard(): React.ReactElement {
         setProgressLine("");
         const dockerRegistry = "842775dh.c1.gra9.container-registry.ovh.net";
         const { ensureRegistryLogin } = await import("../lib/registry-login.js");
-        await ensureRegistryLogin(dockerRegistry, currentPlan);
+        await ensureRegistryLogin(dockerRegistry, plan);
 
         setStatusMessage("Deploying Traefik...");
         setProgressLine("");
@@ -217,9 +216,9 @@ function InstallWizard(): React.ReactElement {
         if (deployFlags.excludedServices.length > 0) {
           deployArgs.push("--exclude", deployFlags.excludedServices.join(","));
         }
-        if (currentPlan === "community") {
-          // Community mode: load .env.community overrides to redirect
-          // image paths to the flowmaker.community public project
+        if (plan === "community") {
+          // Community mode: redirect image paths to the flowmaker.community
+          // public project (handled by deploy-swarm.sh --community flag)
           deployArgs.push("--community");
         }
         // Pass "y" to stdin for any interactive prompts (registry login, continue, etc.)
