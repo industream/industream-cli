@@ -92,12 +92,19 @@ function MainMenu(): React.ReactElement {
 function launchCommand(args: string[]): void {
   const scriptPath = process.argv[1];
   execa("node", [scriptPath, ...args], { stdio: "inherit" })
-    .then(() => {
-      runMenu();
-    })
-    .catch(() => {
-      runMenu();
-    });
+    .then(() => pauseThenMenu())
+    .catch(() => pauseThenMenu());
+}
+
+function pauseThenMenu(): void {
+  // Give the user a chance to read the command output before re-drawing the menu
+  console.log("");
+  console.log("\x1b[2m  Press Enter to return to menu...\x1b[0m");
+  const readline = createInterface({ input: process.stdin, output: process.stdout });
+  readline.question("", () => {
+    readline.close();
+    runMenu();
+  });
 }
 
 function runFallbackMenu(): void {
