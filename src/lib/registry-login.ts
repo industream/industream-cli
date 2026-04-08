@@ -1,24 +1,37 @@
 // src/lib/registry-login.ts
 // Manages docker login to the Industream Harbor registry.
 //
-// - Community users (no license or plan === "community"): no login needed,
-//   `flowmaker.community` is a public Harbor project with anonymous pull.
+// - Community users (no license or plan === "community"): logs in with
+//   an embedded public-knowledge pull-only robot account that has access
+//   to the private `flowmaker.community` project. The credentials are
+//   intentionally embedded in the CLI so community users get zero-friction
+//   access, but we retain visibility via Harbor audit logs.
 // - Premium users (paid license): uses the Harbor credentials stored in
 //   their Keygen license metadata.
 import { execa } from "execa";
 import type { Plan } from "./modules.js";
 
+// =============================================================================
+// Community credentials — embedded pull-only robot on flowmaker.community
+// =============================================================================
+// These credentials are intentionally distributed inside the CLI binary.
+// They grant pull-only access to the BSL-licensed images in the private
+// `flowmaker.community` project. This lets us track usage and revoke if
+// abused, without requiring any signup flow for community users.
+const COMMUNITY_USERNAME = "robot$community-public";
+const COMMUNITY_SECRET = "b47KyO3MzeGc9QL8zfMf9daFDEfrC4qb";
+
 /**
  * Ensure the user is logged in to the Harbor registry appropriate for their
- * plan. Community users don't need authentication (public project). Premium
- * users must have a valid license with credentials in its metadata.
+ * plan. Community users get auto-login with the embedded public robot.
+ * Premium users must have a valid license with credentials in its metadata.
  */
 export async function ensureRegistryLogin(
   registry: string,
   plan: Plan,
 ): Promise<void> {
   if (plan === "community") {
-    // Public project — anonymous pull works, no login required
+    await dockerLogin(registry, COMMUNITY_USERNAME, COMMUNITY_SECRET);
     return;
   }
 
