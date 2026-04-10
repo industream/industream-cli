@@ -34,20 +34,20 @@ DIM='\033[2m'
 NC='\033[0m'
 
 echo ""
-echo -e "${CYAN}        ┌───────┐${NC}"
-echo -e "${CYAN}        │ ◉   ◉ │${NC}"
-echo -e "${CYAN}        │  ───  │${NC}"
-echo -e "${CYAN}     ┌──┤       ├──┐${NC}"
-echo -e "${CYAN}     │  └───┬───┘  │${NC}"
-echo -e "${CYAN}     ◯      │      ◯${NC}"
-echo -e "${CYAN}     │   ┌──┴──┐   │${NC}"
-echo -e "${CYAN}     └───┤     ├───┘${NC}"
-echo -e "${CYAN}         │     │${NC}"
-echo -e "${CYAN}         ┴─┐ ┌─┴${NC}"
-echo -e "${CYAN}           │ │${NC}"
-echo -e "${CYAN}          ─┘ └─${NC}"
+echo -e "${BLUE}        ┌───────┐${NC}"
+echo -e "${BLUE}        │ ◉   ◉ │${NC}"
+echo -e "${BLUE}        │  ───  │${NC}"
+echo -e "${BLUE}     ┌──┤       ├──┐${NC}"
+echo -e "${BLUE}     │  └───┬───┘  │${NC}"
+echo -e "${BLUE}     ◯      │      ◯${NC}"
+echo -e "${BLUE}     │   ┌──┴──┐   │${NC}"
+echo -e "${BLUE}     └───┤     ├───┘${NC}"
+echo -e "${BLUE}         │     │${NC}"
+echo -e "${BLUE}         ┴─┐ ┌─┴${NC}"
+echo -e "${BLUE}           │ │${NC}"
+echo -e "${BLUE}          ─┘ └─${NC}"
 echo ""
-echo -e "${BOLD}  Hey! I'm ${CYAN}Bolt${NC}${BOLD}, your install companion.${NC}"
+echo -e "${BOLD}  Hey! I'm ${BLUE}Bolt${NC}${BOLD}, your install companion.${NC}"
 echo -e "${DIM}  I'll get everything set up for you.${NC}"
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -175,7 +175,7 @@ else
   git clone -q https://github.com/industream/industream-cli.git "$CLI_DIR"
 fi
 echo -e "  ${DIM}Installing dependencies...${NC}"
-cd "$CLI_DIR" && npm install --omit=dev -q 2>/dev/null
+cd "$CLI_DIR" && npm install -q 2>/dev/null
 npm run build -s 2>/dev/null
 sudo npm link -q 2>/dev/null
 echo -e "  ${GREEN}✓${NC} Industream CLI $(node "$CLI_DIR/dist/index.mjs" --version 2>/dev/null || echo 'installed')"
