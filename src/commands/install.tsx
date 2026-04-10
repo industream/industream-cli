@@ -100,7 +100,7 @@ async function runScript(
   await subprocess;
 }
 
-function InstallWizard(): React.ReactElement {
+function InstallWizard({ environment = "prod" }: { environment?: string }): React.ReactElement {
   const { exit } = useApp();
   const [introDone, setIntroDone] = useState(false);
   const [step, setStep] = useState<Step>("prerequisites");
@@ -201,7 +201,7 @@ function InstallWizard(): React.ReactElement {
         setProgressLine("");
         await runScript(
           join(resolved, "scripts/setup/create-secrets.sh"),
-          ["--env", "prod"],
+          ["--env", environment],
           resolved,
           (line) => setProgressLine(line),
         );
@@ -210,7 +210,7 @@ function InstallWizard(): React.ReactElement {
         setStatusMessage("Deploying platform stack...");
         setProgressLine("");
         // Build deploy args — exclude premium services if community plan
-        const deployArgs = ["--env", "prod"];
+        const deployArgs = ["--env", environment];
         const { getDeployFlags } = await import("../lib/stack-filter.js");
         const deployFlags = await getDeployFlags(resolved);
         if (deployFlags.excludedServices.length > 0) {
@@ -254,7 +254,7 @@ function InstallWizard(): React.ReactElement {
         // Wait for ConfigHub to be ready before seeding
         setStatusMessage("Waiting for services to start...");
         setProgressLine("ConfigHub needs to be ready before seeding...");
-        const stackName = "industream-prod";
+        const stackName = `industream-${environment}`;
         let configHubReady = false;
         for (let attempt = 0; attempt < 60; attempt++) {
           try {
@@ -294,7 +294,7 @@ function InstallWizard(): React.ReactElement {
         // Save config
         await saveConfig({
           platformDir: platformDirectory,
-          defaultEnvironment: "prod",
+          defaultEnvironment: environment,
           domain,
         });
 
@@ -372,6 +372,6 @@ function InstallWizard(): React.ReactElement {
   );
 }
 
-export function runInstall(): void {
-  render(<InstallWizard />);
+export function runInstall(environment?: string): void {
+  render(<InstallWizard environment={environment ?? "prod"} />);
 }

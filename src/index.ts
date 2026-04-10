@@ -76,8 +76,9 @@ program
 program
   .command("install")
   .description("Install the Industream platform")
-  .action(() => {
-    runInstall();
+  .option("--env <environment>", "Environment to deploy (prod, dev, staging)", "prod")
+  .action((options) => {
+    runInstall(options.env);
   });
 
 program
