@@ -62,6 +62,8 @@ export function isModuleAllowed(
   entitlements: string[],
 ): boolean {
   if (module.license === "bsl" || module.license === "apache") return true;
-  if (!module.entitlement) return false;
+  // Modules without entitlement are managed by stack file inclusion
+  // (e.g. docker-stack.workers-premium.yml) — not by the exclude list
+  if (!module.entitlement) return true;
   return entitlements.includes(module.entitlement);
 }
