@@ -1,40 +1,23 @@
 import React, { useState, useEffect } from "react";
 import { Text, Box } from "ink";
 
-// Final state of the network nodes logo
-const NETWORK_LINES = [
-  "○     ○     ○     ●",
-  "                  │",
-  "○     ●     ○     ●",
-  "   ╱     ╲     ╱   ",
-  "●     ○     ●     ○",
-  "│                  ",
-  "●     ○     ○     ○",
-];
-
-// Final ASCII logo lines
-const LOGO_LINES = [
-  "██╗███╗   ██╗██████╗ ██╗   ██╗███████╗████████╗██████╗ ███████╗ █████╗ ███╗   ███╗",
-  "██║████╗  ██║██╔══██╗██║   ██║██╔════╝╚══██╔══╝██╔══██╗██╔════╝██╔══██╗████╗ ████║",
-  "██║██╔██╗ ██║██║  ██║██║   ██║███████╗   ██║   ██████╔╝█████╗  ███████║██╔████╔██║",
-  "██║██║╚██╗██║██║  ██║██║   ██║╚════██║   ██║   ██╔══██╗██╔══╝  ██╔══██║██║╚██╔╝██║",
-  "██║██║ ╚████║██████╔╝╚██████╔╝███████║   ██║   ██║  ██║███████╗██║  ██║██║ ╚═╝ ██║",
-  "╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝",
+const LOGO_PARTS = [
+  "○──●──○",
+  "│  │  │",
+  "●──○──●",
 ];
 
 interface BoltBuilderProps {
-  /** Called once the build animation completes */
   onComplete?: () => void;
-  /** Total animation duration in ms (default 4000ms) */
   duration?: number;
 }
 
 export function BoltBuilder({
   onComplete,
-  duration = 4000,
+  duration = 3000,
 }: BoltBuilderProps): React.ReactElement {
-  const [progress, setProgress] = useState(0); // 0..1
-  const totalSteps = 30;
+  const [progress, setProgress] = useState(0);
+  const totalSteps = 20;
 
   useEffect(() => {
     const stepDelay = duration / totalSteps;
@@ -50,51 +33,31 @@ export function BoltBuilder({
     return () => clearInterval(timer);
   }, [duration, onComplete]);
 
-  // Reveal logic: split between network (first half) and ASCII (second half)
-  const networkProgress = Math.min(progress * 2, 1);
-  const logoProgress = Math.max(progress * 2 - 1, 0);
+  const textToReveal = "INDUSTREAM PLATFORM";
+  const charsToShow = Math.floor(progress * textToReveal.length);
+  const revealed = textToReveal.slice(0, charsToShow);
+  const hidden = textToReveal.slice(charsToShow).replace(/./g, " ");
 
-  // Reveal network character by character (left to right, top to bottom)
-  const totalNetworkChars = NETWORK_LINES.reduce((sum, line) => sum + line.length, 0);
-  const charsToRevealNetwork = Math.floor(networkProgress * totalNetworkChars);
-
-  // Reveal ASCII column by column
-  const totalLogoCols = LOGO_LINES[0].length;
-  const colsToRevealLogo = Math.floor(logoProgress * totalLogoCols);
-
-  let charsCount = 0;
-  const revealedNetwork = NETWORK_LINES.map((line) => {
-    const result = Array.from(line).map((char) => {
-      const reveal = charsCount < charsToRevealNetwork;
-      charsCount++;
-      return reveal ? char : " ";
-    });
-    return result.join("");
+  const logoProgress = Math.min(progress * 3, 1);
+  const logoLines = LOGO_PARTS.map((line) => {
+    const chars = Math.floor(logoProgress * line.length);
+    return line.slice(0, chars).padEnd(line.length);
   });
-
-  const revealedLogo = LOGO_LINES.map((line) =>
-    line.slice(0, colsToRevealLogo).padEnd(line.length, " "),
-  );
 
   return (
     <Box flexDirection="column" alignItems="center">
-      {/* Network being built */}
-      <Box flexDirection="column">
-        {revealedNetwork.map((line, idx) => (
+      <Box flexDirection="column" marginBottom={1}>
+        {logoLines.map((line, idx) => (
           <Text key={idx} color="blue">
-            {line}
+            {"  "}{line}
           </Text>
         ))}
       </Box>
-      {/* ASCII logo being built */}
-      <Box flexDirection="column" marginTop={1}>
-        {revealedLogo.map((line, idx) => (
-          <Text key={idx}>
-            <Text bold>{line.slice(0, 30)}</Text>
-            <Text color="blue">{line.slice(30)}</Text>
-          </Text>
-        ))}
-      </Box>
+      <Text bold>
+        {"  "}{revealed}
+        <Text dimColor>{hidden}</Text>
+      </Text>
+      <Text dimColor>{"  Industrial Data Platform"}</Text>
     </Box>
   );
 }
