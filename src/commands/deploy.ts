@@ -80,6 +80,15 @@ export async function runDeploy(
   const dockerRegistry = "842775dh.c1.gra9.container-registry.ovh.net";
   await ensureRegistryLogin(dockerRegistry, plan);
 
+  // Create secrets if they don't exist for this environment
+  console.log(`\n  Creating secrets for ${env}...`);
+  await execa(join(platformDir, "scripts/setup/create-secrets.sh"), ["--env", env], {
+    cwd: platformDir,
+    stdio: "inherit",
+  }).catch(() => {
+    console.log("  Secrets may already exist or script not found — continuing.");
+  });
+
   const args = ["--env", env];
   if (options?.withDemo) {
     args.push("--with-demo");
