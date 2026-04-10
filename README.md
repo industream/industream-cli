@@ -118,8 +118,70 @@ npm test                    # Run tests
 npm run build               # Build for production
 ```
 
+## Community Edition (BSL 1.1 — Free)
+
+The community edition includes everything you need to run an industrial data platform:
+
+### Platform Core
+- **UI Fusion** — unified web interface with SSO
+- **Keycloak** — identity & access management
+- **Grafana** — dashboards & alerting
+- **PostgreSQL** — relational database
+- **InfluxDB** — time-series database
+- **MinIO** — object storage
+
+### FlowMaker (flow orchestration)
+- Core engine, Scheduler, ConfigHub, CDN
+- Visual flow designer & logger
+- Worker Manager
+
+### DataBridge Connectors (BSL)
+- MQTT, Modbus TCP, REST API, HTTP
+- PostgreSQL, InfluxDB, MinIO connectors
+
+### Workers (BSL)
+- Timer, Data Logger, JS Expression, Enqueue
+- Notifications, Conditional Validator
+- Test Data Generator, Equation Solver
+
+### DataCatalog
+- Asset catalog API & UI
+- DataCatalog Mapper worker
+
+## Premium Modules (Commercial License Required)
+
+### Premium Connectors (PRODUCT_DATACATALOG)
+- OPC-UA, Siemens S7, RTSP, GStreamer, Audio
+- Lenada, OSIsoft PI, SAP, Odoo
+
+### Database Add-ons
+- TimescaleDB (ADDON_DB_TIMESCALE)
+- MS SQL Server (ADDON_DB_MSSQL)
+- OSIsoft PI (ADDON_DB_OSISOFT)
+
+### AI Studio (PRODUCT_AI_STUDIO)
+- AI Studio core, ONNX Runtime, AutoML
+- Anomaly Detection, Pattern Recognition
+- Virtual Sensor, Golden Batch, Root Cause Analysis
+
+### MCP Agentic Access (PRODUCT_MCP)
+- MCP FlowMaker, Visualization, Industream, DataCatalog
+
+### System Add-ons
+- Backup & Monitoring — Prometheus, Alertmanager, cAdvisor, ntfy (ADDON_BACKUP)
+- Redundant Server — HA active/passive (ADDON_REDUNDANT)
+
+### Process Packages (quoted separately)
+- **IronStream** — Blast Furnace L2 models (PACKAGE_IRONSTREAM)
+- **ArcStream** — Electric Arc Furnace models (PACKAGE_ARCSTREAM)
+- **FlowGuard** — OEE/TRS monitoring (PACKAGE_FLOWGUARD)
+- **Industrial Monitoring** — Tuyere, IR Hot Spot, Free Roll (PACKAGE_MONITORING)
+
 ## License
 
 BSL 1.1 — Free for non-commercial use. Commercial use requires a paid license.
+Tag-based tiers: 25, 100, 500, 1,000 and 5,000 tags per site.
+
+Contact: license@industream.com | https://industream.com/pricing
 
 See [LICENSE](https://github.com/industream/industream-stack/blob/main/LICENSE)
