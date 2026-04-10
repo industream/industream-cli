@@ -9,6 +9,7 @@ import { runInstall } from "./commands/install.js";
 import { runUpdate } from "./commands/update.js";
 import { runLicense } from "./commands/license.js";
 import { runUninstall } from "./commands/uninstall.js";
+import { runWorkerAdd, runWorkerList, runWorkerRemove } from "./commands/worker.js";
 import { runMenu } from "./commands/menu.js";
 
 const program = new Command();
@@ -103,5 +104,32 @@ program
   .action((options) => {
     runUninstall(options.env);
   });
+
+const workerCommand = new Command("worker").description("Manage external workers");
+
+workerCommand
+  .command("add")
+  .argument("<path>", "Path to worker directory containing industream.yaml")
+  .description("Install an external worker from a directory")
+  .action((path: string) => {
+    runWorkerAdd(path);
+  });
+
+workerCommand
+  .command("list")
+  .description("List installed external workers")
+  .action(() => {
+    runWorkerList();
+  });
+
+workerCommand
+  .command("remove")
+  .argument("<name>", "Worker name to remove")
+  .description("Remove an installed external worker")
+  .action((name: string) => {
+    runWorkerRemove(name);
+  });
+
+program.addCommand(workerCommand);
 
 program.parse();

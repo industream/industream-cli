@@ -1,0 +1,17 @@
+apiVersion: industream.com/v1
+kind: Worker
+metadata:
+  name: simple-worker
+  version: 1.0.0
+  author: Industream
+  description: A minimal example worker using nginx:alpine
+spec:
+  image:
+    ref: nginx:alpine
+  resources:
+    limits:
+      cpus: "0.25"
+      memory: 128M
+  environment:
+    EXAMPLE_VAR: hello
+  replicas: 1
