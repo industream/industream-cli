@@ -248,8 +248,8 @@ function InstallWizard({ environment = "prod" }: { environment?: string }): Reac
         await deployProcess;
 
         // Read domain from .env
-        const environment = await loadEnvFile(platformDirectory);
-        const domain = environment["INDUSTREAM_DOMAIN"] ?? "industream.platform.lan";
+        const envVars = await loadEnvFile(platformDirectory);
+        const domain = envVars["INDUSTREAM_DOMAIN"] ?? "industream.platform.lan";
 
         // Wait for ConfigHub to be ready before seeding
         setStatusMessage("Waiting for services to start...");
