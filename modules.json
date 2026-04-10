@@ -254,8 +254,7 @@
       "status": "ready",
       "serviceName": "worker-opc-ua-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-opc-ua-client",
-      "entitlement": "PRODUCT_DATACATALOG"
+      "imagePattern": "flowmaker.boxes/flow-box-opc-ua-client"
     },
     {
       "id": "rtsp-connector",
@@ -265,8 +264,7 @@
       "status": "ready",
       "serviceName": "worker-rtsp-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-rtsp-client",
-      "entitlement": "PRODUCT_DATACATALOG"
+      "imagePattern": "flowmaker.boxes/flow-box-rtsp-client"
     },
     {
       "id": "minio-connector",
@@ -426,8 +424,7 @@
       "status": "ready",
       "serviceName": "worker-luminosity-box",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-luminosity-box",
-      "entitlement": "PRODUCT_DATACATALOG"
+      "imagePattern": "flowmaker.boxes/flow-box-luminosity-box"
     },
     {
       "id": "prometheus",
