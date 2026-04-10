@@ -8,8 +8,11 @@ vi.mock("./keygen.js", () => ({
 import { validateLicenseWithKeygen, type CachedLicense } from "./keygen.js";
 import { loadModuleRegistry } from "./modules.js";
 
+// Only proprietary modules WITH entitlements are managed by the exclude list.
+// Modules without entitlements (e.g. OPC-UA, RTSP, Luminosity) are excluded
+// at the stack file level (docker-stack.workers-premium.yml not included).
 const PROPRIETARY_SERVICE_NAMES = loadModuleRegistry()
-  .modules.filter((m) => m.license === "proprietary" && m.serviceName)
+  .modules.filter((m) => m.license === "proprietary" && m.serviceName && m.entitlement)
   .map((m) => m.serviceName!);
 
 function mockLicense(opts: {
