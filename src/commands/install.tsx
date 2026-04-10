@@ -251,11 +251,42 @@ function InstallWizard(): React.ReactElement {
         const environment = await loadEnvFile(platformDirectory);
         const domain = environment["INDUSTREAM_DOMAIN"] ?? "industream.platform.lan";
 
+        // Wait for ConfigHub to be ready before seeding
+        setStatusMessage("Waiting for services to start...");
+        setProgressLine("ConfigHub needs to be ready before seeding...");
+        const stackName = "industream-prod";
+        let configHubReady = false;
+        for (let attempt = 0; attempt < 60; attempt++) {
+          try {
+            const { stdout } = await execa("/usr/bin/docker", [
+              "service", "ps", `${stackName}_flowmaker-confighub`,
+              "--filter", "desired-state=running",
+              "--format", "{{.CurrentState}}",
+            ]);
+            if (stdout.includes("Running")) {
+              configHubReady = true;
+              break;
+            }
+          } catch {
+            // service not found yet
+          }
+          setProgressLine(`Waiting for ConfigHub... (${attempt + 1}/60)`);
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
+
+        if (!configHubReady) {
+          setProgressLine("ConfigHub not ready after 5 minutes — skipping seed");
+        }
+
         setStatusMessage("Seeding ConfigHub...");
         setProgressLine("");
+        // Add a small delay for the service to fully initialize
+        if (configHubReady) {
+          await new Promise((resolve) => setTimeout(resolve, 10000));
+        }
         await runScript(
           join(resolved, "scripts/setup/seed-confighub.sh"),
-          ["--stack", "industream-prod", "--domain", domain],
+          ["--stack", stackName, "--domain", domain],
           resolved,
           (line) => setProgressLine(line),
         );
