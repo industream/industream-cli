@@ -2,43 +2,47 @@
 
 Command-line tool to install, manage and monitor the Industream Platform.
 
-## Quick Install (clean server)
+## Quick Install
+
+### Linux (Debian/Ubuntu/RHEL)
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/industream/industream-cli/main/install.sh)
 ```
 
-This installs all prerequisites (Git, Docker, Node.js 22) and the CLI.
-After install, close your session and reconnect, then run:
+### Windows (WSL2)
+
+> **Warning:** WSL2 requires Docker to run inside the Linux subsystem (not Docker Desktop).
+> The `bash <(curl ...)` syntax does not work on WSL2. Use the command below instead.
+> After install, you **must close and reopen** your WSL terminal before running `industream`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/industream/industream-cli/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
+```
+
+After install, add the platform domains to your Windows hosts file (PowerShell as Admin):
+
+```powershell
+Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 industream.platform.lan flowmaker.industream.platform.lan dashboard.industream.platform.lan datacatalog.industream.platform.lan auth.industream.platform.lan confighub.industream.platform.lan scheduler.industream.platform.lan"
+```
+
+---
+
+After install, **close your terminal and reconnect** (required to activate Docker group), then run:
 
 ```bash
 industream
 ```
 
-## Manual Install
+This opens the interactive platform manager.
 
-### Prerequisites
+## What the installer does
 
-- Linux (Debian/Ubuntu/RHEL)
-- Docker 20.10+ with Swarm mode
-- Node.js 22+
-- Git
+1. Installs Git, Docker, Docker Swarm, bc, jq, Node.js 22
+2. Clones the Industream CLI and builds it
+3. Links the `industream` command globally
 
-### Install
-
-```bash
-git clone https://github.com/industream/industream-cli.git ~/.local/share/industream/cli
-cd ~/.local/share/industream/cli
-npm install
-npm run build
-sudo npm link
-```
-
-### Verify
-
-```bash
-industream --help
-```
+No registry credentials are needed for the community edition.
 
 ## Commands
 
@@ -47,28 +51,61 @@ industream --help
 | `industream` | Interactive menu |
 | `industream install` | Full platform setup wizard |
 | `industream status` | Live service dashboard |
-| `industream deploy --env prod` | Deploy an environment |
-| `industream stop --env prod` | Stop an environment |
+| `industream deploy` | Deploy an environment (prod/dev/staging) |
+| `industream down` | Bring environment down (data preserved) |
 | `industream update` | Check for available updates |
 | `industream logs [service]` | View service logs |
-| `industream secrets --show` | Display platform secrets |
+| `industream secrets` | List platform secrets |
 | `industream license` | View license info |
+| `industream license --set KEY` | Activate a license |
 | `industream uninstall --env prod` | Remove an environment |
 
 ## Platform Setup
 
-After installing the CLI, the typical flow is:
+After installing the CLI:
 
 ```bash
-# 1. Login to Docker registry (required for private images)
-docker login 842775dh.c1.gra9.container-registry.ovh.net
-
-# 2. Launch the interactive installer
+# 1. Launch the interactive installer (community mode, no credentials needed)
 industream install
 
-# 3. Check platform health
+# 2. Check platform health
 industream status
 ```
+
+### Premium license
+
+If you have a commercial license:
+
+```bash
+# Activate your license key
+industream license --set XXXX-XXXX-XXXX-XXXX-XXXX-V3
+
+# Redeploy with premium modules enabled
+industream install
+```
+
+## System Requirements
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| CPU | 4 cores | 8+ cores |
+| RAM | 8 GB | 16+ GB |
+| Disk | 20 GB | 40+ GB |
+| OS | Debian 12, Ubuntu 22.04+, RHEL 9+ | Debian 12 |
+| Docker | 20.10+ | Latest |
+| Node.js | 22+ | 22 LTS |
+
+WSL2 on Windows 10/11 is supported.
+
+## TLS Certificates
+
+| Mode | Internet | Renewal | Usage |
+|------|----------|---------|-------|
+| `selfsigned` (default) | No | Manual (5 years) | Dev/demo |
+| `letsencrypt` | Yes | Auto (90 days) | Production with internet |
+| `custom` | No | Manual (client PKI) | Production offline |
+
+Set `TLS_MODE` in `~/industream-platform/.env`.
 
 ## Development
 
@@ -77,10 +114,12 @@ git clone https://github.com/industream/industream-cli.git
 cd industream-cli
 npm install
 npm run dev -- --help      # Run in dev mode
-npm test                    # Run tests (25 tests)
+npm test                    # Run tests
 npm run build               # Build for production
 ```
 
 ## License
 
-BSL 1.1 — See [LICENSE](../industream-stack/LICENSE)
+BSL 1.1 — Free for non-commercial use. Commercial use requires a paid license.
+
+See [LICENSE](https://github.com/industream/industream-stack/blob/main/LICENSE)
