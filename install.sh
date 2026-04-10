@@ -12,21 +12,16 @@
 # =============================================================================
 set -e
 
-# Persist script to a file so we can re-exec ourselves after `sg docker`
-# without re-downloading a possibly cached version from GitHub.
+# Persist script to a temp file so we can re-exec after `sg docker`.
+# When invoked via bash <(curl ...), $0 is /dev/fd/N — a pipe that can
+# only be read once. We must download to a file FIRST, then exec from it.
 if [ -z "$INDUSTREAM_INSTALLER_SELF" ]; then
   INDUSTREAM_INSTALLER_SELF=$(mktemp --suffix=.sh)
-  # Copy current script content (works with bash <(curl) which gives a pipe)
-  if [ -r "$0" ] && [ "$0" != "bash" ]; then
-    cp "$0" "$INDUSTREAM_INSTALLER_SELF" 2>/dev/null || true
-  fi
-  # If cp failed (e.g. $0 is /dev/fd/63 from process substitution),
-  # re-download once from the main branch using the cache-bust parameter
-  if [ ! -s "$INDUSTREAM_INSTALLER_SELF" ]; then
-    curl -fsSL "https://raw.githubusercontent.com/industream/industream-cli/main/install.sh?t=$(date +%s)" > "$INDUSTREAM_INSTALLER_SELF"
-  fi
+  curl -fsSL "https://raw.githubusercontent.com/industream/industream-cli/main/install.sh?t=$(date +%s)" > "$INDUSTREAM_INSTALLER_SELF"
   chmod +x "$INDUSTREAM_INSTALLER_SELF"
   export INDUSTREAM_INSTALLER_SELF
+  # Re-exec from the saved file instead of continuing from the pipe
+  exec bash "$INDUSTREAM_INSTALLER_SELF"
 fi
 
 GREEN='\033[0;32m'
