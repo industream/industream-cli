@@ -9,8 +9,8 @@ import { isDockerAvailable, isSwarmActive } from "../lib/docker.js";
 import {
   cloneSwarmRepo,
   isPlatformInstalled,
-  loadEnvFile,
   resolvePlatformDir,
+  updateEnvValue,
 } from "../lib/swarm-repo.js";
 import { validateLicenseWithKeygen } from "../lib/keygen.js";
 import { loadModuleRegistry, getModulesByLicense } from "../lib/modules.js";
@@ -100,7 +100,7 @@ async function runScript(
   await subprocess;
 }
 
-function InstallWizard({ environment = "prod" }: { environment?: string }): React.ReactElement {
+function InstallWizard({ environment = "prod", domain = "industream.platform.lan" }: { environment?: string; domain?: string }): React.ReactElement {
   const { exit } = useApp();
   const [introDone, setIntroDone] = useState(false);
   const [step, setStep] = useState<Step>("prerequisites");
@@ -141,6 +141,10 @@ function InstallWizard({ environment = "prod" }: { environment?: string }): Reac
         } else {
           await cloneSwarmRepo(platformDirectory);
         }
+
+        // Set domain in .env before deploy
+        setStatusMessage(`Configuring domain: ${domain}`);
+        await updateEnvValue(platformDirectory, "INDUSTREAM_DOMAIN", domain);
 
         // Step 3: Modules
         setStep("modules");
@@ -248,10 +252,6 @@ function InstallWizard({ environment = "prod" }: { environment?: string }): Reac
           }
         });
         await deployProcess;
-
-        // Read domain from .env
-        const envVars = await loadEnvFile(platformDirectory);
-        const domain = envVars["INDUSTREAM_DOMAIN"] ?? "industream.platform.lan";
 
         // Wait for ConfigHub to be ready before seeding
         setStatusMessage("Waiting for services to start...");
@@ -374,6 +374,6 @@ function InstallWizard({ environment = "prod" }: { environment?: string }): Reac
   );
 }
 
-export function runInstall(environment?: string): void {
-  render(<InstallWizard environment={environment ?? "prod"} />);
+export function runInstall(environment?: string, domain?: string): void {
+  render(<InstallWizard environment={environment ?? "prod"} domain={domain} />);
 }

@@ -1,6 +1,6 @@
 // src/lib/swarm-repo.ts
 import { execa } from "execa";
-import { readFile, access } from "node:fs/promises";
+import { readFile, writeFile, access } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -48,6 +48,25 @@ export async function loadEnvFile(platformDir: string): Promise<Record<string, s
   const resolved = resolvePlatformDir(platformDir);
   const content = await readFile(join(resolved, ".env"), "utf-8");
   return parseEnvFile(content);
+}
+
+export async function updateEnvValue(
+  platformDir: string,
+  key: string,
+  value: string,
+): Promise<void> {
+  const resolved = resolvePlatformDir(platformDir);
+  const envPath = join(resolved, ".env");
+  const content = await readFile(envPath, "utf-8");
+  const lines = content.split("\n");
+  const prefix = `${key}=`;
+  const index = lines.findIndex((line) => line.startsWith(prefix));
+  if (index !== -1) {
+    lines[index] = `${key}=${value}`;
+  } else {
+    lines.push(`${key}=${value}`);
+  }
+  await writeFile(envPath, lines.join("\n"), "utf-8");
 }
 
 export async function getDeployedVersions(

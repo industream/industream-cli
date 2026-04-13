@@ -78,8 +78,9 @@ program
   .command("install")
   .description("Install the Industream platform")
   .option("--env <environment>", "Environment to deploy (prod, dev, staging)", "prod")
+  .option("--domain <domain>", "Platform domain name", "industream.platform.lan")
   .action((options) => {
-    runInstall(options.env);
+    runInstall(options.env, options.domain);
   });
 
 program
