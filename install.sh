@@ -130,8 +130,18 @@ if [ "$SWARM_STATE" = "active" ]; then
   echo -e "  ${GREEN}✓${NC} Docker Swarm active"
 else
   echo -e "  ${YELLOW}Initializing Docker Swarm...${NC}"
-  docker swarm init 2>/dev/null || docker swarm init --advertise-addr "$(hostname -I | awk '{print $1}')"
-  echo -e "  ${GREEN}✓${NC} Docker Swarm initialized"
+  if docker swarm init 2>/dev/null || docker swarm init --advertise-addr "$(hostname -I | awk '{print $1}')" 2>/dev/null; then
+    echo -e "  ${GREEN}✓${NC} Docker Swarm initialized"
+  else
+    # Check again — init may have failed because swarm is already active
+    SWARM_RECHECK=$(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || echo "inactive")
+    if [ "$SWARM_RECHECK" = "active" ]; then
+      echo -e "  ${GREEN}✓${NC} Docker Swarm active"
+    else
+      echo -e "  ${RED}✗${NC} Failed to initialize Docker Swarm"
+      exit 1
+    fi
+  fi
 fi
 
 # =============================================================================
