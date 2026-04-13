@@ -221,6 +221,8 @@ function InstallWizard({ environment = "prod" }: { environment?: string }): Reac
           // public project (handled by deploy-swarm.sh --community flag)
           deployArgs.push("--community");
         }
+        // Skip memory check in non-interactive CLI mode (no TTY for confirmation prompt)
+        deployArgs.push("--skip-memory-check");
         // Pass "y" to stdin for any interactive prompts (registry login, continue, etc.)
         const deployProcess = execa(
           join(resolved, "scripts/deploy-swarm.sh"),

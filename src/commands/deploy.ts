@@ -99,6 +99,8 @@ export async function runDeploy(
   if (plan === "community") {
     args.push("--community");
   }
+  // Skip memory check in non-interactive CLI mode (no TTY for confirmation prompt)
+  args.push("--skip-memory-check");
 
   const scriptPath = join(platformDir, "scripts", "deploy-swarm.sh");
 
