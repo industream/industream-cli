@@ -142,9 +142,15 @@ function InstallWizard({ environment = "prod", domain = "industream.platform.lan
           await cloneSwarmRepo(platformDirectory);
         }
 
-        // Set domain in .env before deploy
-        setStatusMessage(`Configuring domain: ${domain}`);
+        // Set domain and TLS mode in .env before deploy
+        const isLocalDomain = /\.(lan|local|localhost)$/.test(domain);
+        const tlsMode = isLocalDomain ? "selfsigned" : "letsencrypt";
+        setStatusMessage(`Configuring domain: ${domain} (TLS: ${tlsMode})`);
         await updateEnvValue(platformDirectory, "INDUSTREAM_DOMAIN", domain);
+        await updateEnvValue(platformDirectory, "TLS_MODE", tlsMode);
+        if (!isLocalDomain) {
+          await updateEnvValue(platformDirectory, "ACME_EMAIL", "admin@industream.com");
+        }
 
         // Step 3: Modules
         setStep("modules");
