@@ -79,8 +79,9 @@ program
   .description("Install the Industream platform")
   .option("--env <environment>", "Environment to deploy (prod, dev, staging)", "prod")
   .option("--domain <domain>", "Platform domain name", "industream.platform.lan")
+  .option("--tls <mode>", "TLS mode (selfsigned, letsencrypt). Default: selfsigned")
   .action((options) => {
-    runInstall(options.env, options.domain);
+    runInstall(options.env, options.domain, options.tls);
   });
 
 program

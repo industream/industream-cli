@@ -17,6 +17,7 @@ import { loadModuleRegistry, getModulesByLicense } from "../lib/modules.js";
 import type { Module, Plan } from "../lib/modules.js";
 import { execa } from "execa";
 import { join } from "node:path";
+import { copyFile, access } from "node:fs/promises";
 
 type Step =
   | "prerequisites"
@@ -100,7 +101,7 @@ async function runScript(
   await subprocess;
 }
 
-function InstallWizard({ environment = "prod", domain = "industream.platform.lan" }: { environment?: string; domain?: string }): React.ReactElement {
+function InstallWizard({ environment = "prod", domain = "industream.platform.lan", tls }: { environment?: string; domain?: string; tls?: string }): React.ReactElement {
   const { exit } = useApp();
   const [introDone, setIntroDone] = useState(false);
   const [step, setStep] = useState<Step>("prerequisites");
@@ -142,15 +143,56 @@ function InstallWizard({ environment = "prod", domain = "industream.platform.lan
           await cloneSwarmRepo(platformDirectory);
         }
 
+        // Ensure .env exists (copy from .env.<env>.example or .env.example)
+        const envPath = join(resolved, ".env");
+        try {
+          await access(envPath);
+        } catch {
+          const candidates = [`.env.${environment}.example`, ".env.example"];
+          let copied = false;
+          for (const candidate of candidates) {
+            try {
+              await copyFile(join(resolved, candidate), envPath);
+              copied = true;
+              break;
+            } catch {
+              // try next
+            }
+          }
+          if (!copied) {
+            throw new Error("No .env.example found in platform repo");
+          }
+        }
+
         // Set domain and TLS mode in .env before deploy
-        const isLocalDomain = /\.(lan|local|localhost)$/.test(domain);
-        const tlsMode = isLocalDomain ? "selfsigned" : "letsencrypt";
+        // Default: selfsigned. letsencrypt only when explicitly requested via --tls.
+        const tlsMode = tls === "letsencrypt" ? "letsencrypt" : "selfsigned";
         setStatusMessage(`Configuring domain: ${domain} (TLS: ${tlsMode})`);
         await updateEnvValue(platformDirectory, "INDUSTREAM_DOMAIN", domain);
         await updateEnvValue(platformDirectory, "TLS_MODE", tlsMode);
-        if (!isLocalDomain) {
+        if (tlsMode === "letsencrypt") {
           await updateEnvValue(platformDirectory, "ACME_EMAIL", "admin@industream.com");
         }
+
+        // Regenerate certs (selfsigned) and UIFusion config to apply the new domain
+        if (tlsMode === "selfsigned") {
+          setStatusMessage("Generating self-signed certificates...");
+          setProgressLine("");
+          await runScript(
+            join(resolved, "scripts/generate/generate-certs.sh"),
+            [],
+            resolved,
+            (line) => setProgressLine(line),
+          );
+        }
+        setStatusMessage("Generating UIFusion configuration...");
+        setProgressLine("");
+        await runScript(
+          join(resolved, "scripts/generate/generate-uifusion-config.sh"),
+          ["--force", "--env", environment],
+          resolved,
+          (line) => setProgressLine(line),
+        );
 
         // Step 3: Modules
         setStep("modules");
@@ -380,6 +422,6 @@ function InstallWizard({ environment = "prod", domain = "industream.platform.lan
   );
 }
 
-export function runInstall(environment?: string, domain?: string): void {
-  render(<InstallWizard environment={environment ?? "prod"} domain={domain} />);
+export function runInstall(environment?: string, domain?: string, tls?: string): void {
+  render(<InstallWizard environment={environment ?? "prod"} domain={domain} tls={tls} />);
 }
