@@ -14,6 +14,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "bash scripts/build-sea.sh",
+    "postinstall": "bash scripts/postinstall.sh",
     "prepublishOnly": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest"
