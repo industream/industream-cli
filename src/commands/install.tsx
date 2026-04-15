@@ -194,23 +194,16 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
           await cloneSwarmRepo(platformDirectory);
         }
 
-        // Ensure .env exists (copy from .env.<env>.example or .env.example)
+        // Ensure base .env exists (copied from .env.example)
+        // The env-specific overrides (.env.<env>) are created by deploy-swarm.sh
+        // from .env.<env>.example on first run.
         const envPath = join(resolved, ".env");
         try {
           await access(envPath);
         } catch {
-          const candidates = [`.env.${environment}.example`, ".env.example"];
-          let copied = false;
-          for (const candidate of candidates) {
-            try {
-              await copyFile(join(resolved, candidate), envPath);
-              copied = true;
-              break;
-            } catch {
-              // try next
-            }
-          }
-          if (!copied) {
+          try {
+            await copyFile(join(resolved, ".env.example"), envPath);
+          } catch {
             throw new Error("No .env.example found in platform repo");
           }
         }
