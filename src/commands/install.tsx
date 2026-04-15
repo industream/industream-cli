@@ -13,7 +13,11 @@ import {
   resolvePlatformDir,
   updateEnvValue,
 } from "../lib/swarm-repo.js";
-import { validateLicenseWithKeygen } from "../lib/keygen.js";
+import {
+  activateLicense as activateLicenseKeygen,
+  loadCachedLicense,
+  validateLicenseWithKeygen,
+} from "../lib/keygen.js";
 import { loadModuleRegistry, getModulesByLicense } from "../lib/modules.js";
 import type { Module, Plan } from "../lib/modules.js";
 import { execa } from "execa";
@@ -120,6 +124,45 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
   const [configDone, setConfigDone] = useState(!needsPrompt);
   const [domain, setDomain] = useState(cliDomain ?? "industream.platform.lan");
   const [tls, setTls] = useState<string>(cliTls ?? "selfsigned");
+  const [licenseLabel, setLicenseLabel] = useState<string>("Community (no license)");
+
+  // Load cached license info once for the interactive menu
+  useEffect(() => {
+    if (!needsPrompt) return;
+    loadCachedLicense()
+      .then((cache) => {
+        if (cache?.plan) {
+          const planLabel = cache.plan.charAt(0).toUpperCase() + cache.plan.slice(1);
+          setLicenseLabel(cache.valid ? `${planLabel} (active)` : `${planLabel} (invalid)`);
+        }
+      })
+      .catch(() => {
+        // keep default label
+      });
+  }, [needsPrompt]);
+
+  async function handleActivateLicense(
+    key: string,
+  ): Promise<{ ok: boolean; label: string; error?: string }> {
+    try {
+      const response = await activateLicenseKeygen(key);
+      if (!response.meta.valid) {
+        return { ok: false, label: licenseLabel, error: response.meta.detail };
+      }
+      const cache = await loadCachedLicense();
+      const plan = cache?.plan ?? "enterprise";
+      const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+      const newLabel = `${planLabel} (active)`;
+      setLicenseLabel(newLabel);
+      return { ok: true, label: newLabel };
+    } catch (err) {
+      return {
+        ok: false,
+        label: licenseLabel,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
 
   useEffect(() => {
     if (!introDone || !configDone) return;
@@ -399,6 +442,8 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
         <InstallConfigPrompt
           defaultDomain={domain}
           defaultTls={(tls === "letsencrypt" ? "letsencrypt" : "selfsigned")}
+          initialLicenseLabel={licenseLabel}
+          activateLicense={handleActivateLicense}
           onComplete={(config) => {
             setDomain(config.domain);
             setTls(config.tls);
