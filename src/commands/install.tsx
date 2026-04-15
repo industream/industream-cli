@@ -4,6 +4,7 @@ import { BoltAnimated } from "../components/BoltAnimated.js";
 import { BoltBuilder } from "../components/BoltBuilder.js";
 import { Banner } from "../components/Banner.js";
 import { ModuleSelector } from "../components/ModuleSelector.js";
+import { InstallConfigPrompt } from "../components/InstallConfigPrompt.js";
 import { saveConfig } from "../lib/config.js";
 import { isDockerAvailable, isSwarmActive } from "../lib/docker.js";
 import {
@@ -101,7 +102,7 @@ async function runScript(
   await subprocess;
 }
 
-function InstallWizard({ environment = "prod", domain = "industream.platform.lan", tls }: { environment?: string; domain?: string; tls?: string }): React.ReactElement {
+function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }: { environment?: string; domain?: string; tls?: string }): React.ReactElement {
   const { exit } = useApp();
   const [introDone, setIntroDone] = useState(false);
   const [step, setStep] = useState<Step>("prerequisites");
@@ -113,8 +114,15 @@ function InstallWizard({ environment = "prod", domain = "industream.platform.lan
   const [currentPlan, setCurrentPlan] = useState<Plan>("community");
   const platformDirectory = "~/industream-platform";
 
+  // Config prompt: skip if CLI args provided OR no TTY (non-interactive)
+  const interactive = Boolean(process.stdin.isTTY);
+  const needsPrompt = interactive && cliDomain === undefined && cliTls === undefined;
+  const [configDone, setConfigDone] = useState(!needsPrompt);
+  const [domain, setDomain] = useState(cliDomain ?? "industream.platform.lan");
+  const [tls, setTls] = useState<string>(cliTls ?? "selfsigned");
+
   useEffect(() => {
-    if (!introDone) return;
+    if (!introDone || !configDone) return;
     async function runInstall() {
       try {
         // Step 1: Prerequisites
@@ -357,7 +365,7 @@ function InstallWizard({ environment = "prod", domain = "industream.platform.lan
       }
     }
     runInstall();
-  }, [introDone]);
+  }, [introDone, configDone]);
 
   // When done, any key press exits and launches status
   useInput(
@@ -379,6 +387,24 @@ function InstallWizard({ environment = "prod", domain = "industream.platform.lan
     return (
       <Box flexDirection="column">
         <BoltBuilder duration={5000} onComplete={() => setIntroDone(true)} />
+      </Box>
+    );
+  }
+
+  // Interactive config prompt (domain + TLS mode)
+  if (!configDone) {
+    return (
+      <Box flexDirection="column">
+        <Banner />
+        <InstallConfigPrompt
+          defaultDomain={domain}
+          defaultTls={(tls === "letsencrypt" ? "letsencrypt" : "selfsigned")}
+          onComplete={(config) => {
+            setDomain(config.domain);
+            setTls(config.tls);
+            setConfigDone(true);
+          }}
+        />
       </Box>
     );
   }
