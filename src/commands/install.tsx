@@ -118,8 +118,14 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
   const [currentPlan, setCurrentPlan] = useState<Plan>("community");
   const platformDirectory = "~/industream-platform";
 
-  // Config prompt: skip if CLI args provided OR no TTY (non-interactive)
-  const interactive = Boolean(process.stdin.isTTY);
+  // Show the interactive config menu whenever no CLI args override it.
+  // Ink itself needs raw mode on stdin to work, so detect the same capability
+  // rather than relying on isTTY (which can be falsy when the child is spawned
+  // via execa with stdio: "inherit", even from an interactive parent menu).
+  const interactive =
+    typeof process.stdin.setRawMode === "function" ||
+    Boolean(process.stdout.isTTY) ||
+    Boolean(process.stdin.isTTY);
   const needsPrompt = interactive && cliDomain === undefined && cliTls === undefined;
   const [configDone, setConfigDone] = useState(!needsPrompt);
   const [domain, setDomain] = useState(cliDomain ?? "industream.platform.lan");
