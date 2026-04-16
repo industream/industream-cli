@@ -2,7 +2,11 @@
 import { execa } from "execa";
 import { createInterface } from "node:readline";
 import { loadConfig } from "../lib/config.js";
-import { resolvePlatformDir, isPlatformInstalled } from "../lib/swarm-repo.js";
+import {
+  resolvePlatformDir,
+  isPlatformInstalled,
+  loadEnvFile,
+} from "../lib/swarm-repo.js";
 import { getDeployFlags } from "../lib/stack-filter.js";
 import { ensureRegistryLogin } from "../lib/registry-login.js";
 import { join } from "node:path";
@@ -79,6 +83,32 @@ export async function runDeploy(
   // Ensure registry login (community = embedded robot, premium = license creds)
   const dockerRegistry = "842775dh.c1.gra9.container-registry.ovh.net";
   await ensureRegistryLogin(dockerRegistry, plan);
+
+  // Regenerate domain-dependent configs (self-signed certs + UIFusion JSON).
+  // This ensures any change to INDUSTREAM_DOMAIN or TLS_MODE in .env is picked
+  // up on the next deploy — otherwise UIFusion keeps pointing to the old URL
+  // and self-signed certs stay on the old hostname.
+  const envVars = await loadEnvFile(config.platformDir);
+  const tlsMode = envVars.TLS_MODE ?? "selfsigned";
+
+  if (tlsMode === "selfsigned") {
+    console.log(`\n  Regenerating self-signed certificates for ${envVars.INDUSTREAM_DOMAIN ?? "default domain"}...`);
+    await execa(join(platformDir, "scripts/generate/generate-certs.sh"), [], {
+      cwd: platformDir,
+      stdio: "inherit",
+    }).catch((err) => {
+      console.log(`  Could not regenerate certs: ${err instanceof Error ? err.message : String(err)}`);
+    });
+  }
+
+  console.log(`\n  Regenerating UIFusion configuration for ${env}...`);
+  await execa(
+    join(platformDir, "scripts/generate/generate-uifusion-config.sh"),
+    ["--force", "--env", env],
+    { cwd: platformDir, stdio: "inherit" },
+  ).catch((err) => {
+    console.log(`  Could not regenerate UIFusion config: ${err instanceof Error ? err.message : String(err)}`);
+  });
 
   // Create secrets if they don't exist for this environment
   console.log(`\n  Creating secrets for ${env}...`);
