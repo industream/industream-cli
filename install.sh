@@ -175,18 +175,41 @@ fi
 echo ""
 CLI_DIR="${HOME}/.local/share/industream/cli"
 if [ -d "$CLI_DIR/.git" ]; then
-  echo -e "  ${DIM}Updating Industream CLI...${NC}"
-  git -C "$CLI_DIR" pull --ff-only -q 2>/dev/null || true
+  OLD_COMMIT=$(git -C "$CLI_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+  echo -e "  ${DIM}Updating Industream CLI (current: $OLD_COMMIT)...${NC}"
+  # Reset any local changes and force sync with origin/main
+  git -C "$CLI_DIR" fetch --quiet origin main
+  if ! git -C "$CLI_DIR" reset --hard origin/main --quiet; then
+    echo -e "  ${RED}✗${NC} Failed to update CLI. Try: rm -rf $CLI_DIR && rerun this installer"
+    exit 1
+  fi
+  NEW_COMMIT=$(git -C "$CLI_DIR" rev-parse --short HEAD)
+  if [ "$OLD_COMMIT" = "$NEW_COMMIT" ]; then
+    echo -e "  ${DIM}Already at latest commit ($NEW_COMMIT)${NC}"
+  else
+    echo -e "  ${DIM}Updated $OLD_COMMIT → $NEW_COMMIT${NC}"
+  fi
 else
   echo -e "  ${DIM}Downloading Industream CLI...${NC}"
   mkdir -p "$(dirname "$CLI_DIR")"
   git clone -q https://github.com/industream/industream-cli.git "$CLI_DIR"
 fi
 echo -e "  ${DIM}Installing dependencies...${NC}"
-cd "$CLI_DIR" && npm install -q 2>/dev/null
-npm run build -s 2>/dev/null
-sudo npm link -q 2>/dev/null
-echo -e "  ${GREEN}✓${NC} Industream CLI $(node "$CLI_DIR/dist/index.mjs" --version 2>/dev/null || echo 'installed')"
+cd "$CLI_DIR"
+if ! npm install --silent; then
+  echo -e "  ${RED}✗${NC} npm install failed"
+  exit 1
+fi
+if ! npm run build --silent; then
+  echo -e "  ${RED}✗${NC} npm run build failed"
+  exit 1
+fi
+if ! sudo npm link --silent; then
+  echo -e "  ${RED}✗${NC} sudo npm link failed"
+  exit 1
+fi
+CLI_VERSION=$(node "$CLI_DIR/dist/index.mjs" --version 2>/dev/null || echo 'installed')
+echo -e "  ${GREEN}✓${NC} Industream CLI $CLI_VERSION"
 
 # =============================================================================
 # Done — launch wizard
