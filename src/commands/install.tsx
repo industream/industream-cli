@@ -23,6 +23,7 @@ import type { Module, Plan } from "../lib/modules.js";
 import { execa } from "execa";
 import { join } from "node:path";
 import { copyFile, access } from "node:fs/promises";
+import { createInterface } from "node:readline";
 
 type Step =
   | "prerequisites"
@@ -492,6 +493,35 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
   );
 }
 
-export function runInstall(environment?: string, domain?: string, tls?: string): void {
+async function confirmReinstall(): Promise<boolean> {
+  console.log("");
+  console.log("  \x1b[1;33m⚠  Platform is already installed\x1b[0m");
+  console.log("");
+  console.log("  Running \x1b[1minstall\x1b[0m will reconfigure everything from scratch.");
+  console.log("  For most cases you should use one of these instead:");
+  console.log("");
+  console.log("    \x1b[1mindustream config\x1b[0m   — edit platform .env (domain, TLS, ...)");
+  console.log("    \x1b[1mindustream update\x1b[0m   — pull latest stack changes");
+  console.log("    \x1b[1mindustream deploy\x1b[0m   — re-apply the stack (regenerates certs + UIFusion config)");
+  console.log("");
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question("  Reinstall anyway? [y/N]: ", (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase() === "y");
+    });
+  });
+}
+
+export async function runInstall(environment?: string, domain?: string, tls?: string): Promise<void> {
+  const alreadyInstalled = await isPlatformInstalled("~/industream-platform");
+  if (alreadyInstalled) {
+    const confirmed = await confirmReinstall();
+    if (!confirmed) {
+      console.log("  Install cancelled.");
+      return;
+    }
+  }
   render(<InstallWizard environment={environment ?? "prod"} domain={domain} tls={tls} />);
 }
