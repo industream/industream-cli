@@ -7,6 +7,7 @@ import { runLogs } from "./commands/logs.js";
 import { runSecrets } from "./commands/secrets.js";
 import { runInstall } from "./commands/install.js";
 import { runUpdate } from "./commands/update.js";
+import { runConfig } from "./commands/config.js";
 import { runLicense } from "./commands/license.js";
 import { runUninstall } from "./commands/uninstall.js";
 import { runWorkerAdd, runWorkerList, runWorkerRemove } from "./commands/worker.js";
@@ -89,6 +90,13 @@ program
   .description("Check for available platform updates")
   .action(() => {
     runUpdate();
+  });
+
+program
+  .command("config")
+  .description("View and edit platform .env configuration")
+  .action(() => {
+    runConfig();
   });
 
 program

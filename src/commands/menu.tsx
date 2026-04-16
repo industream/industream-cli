@@ -21,6 +21,7 @@ const MENU_ITEMS: MenuItem[] = [
   { key: "7", label: "Update", description: "Check for updates", command: ["update"] },
   { key: "8", label: "License", description: "View license info", command: ["license"] },
   { key: "9", label: "Uninstall", description: "Remove the platform", command: ["uninstall"] },
+  { key: "c", label: "Config", description: "Edit platform .env configuration", command: ["config"] },
 ];
 
 function MainMenu(): React.ReactElement {
