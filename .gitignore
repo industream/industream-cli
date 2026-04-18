@@ -27,3 +27,6 @@ tokens.txt
 *.log
 .vscode/settings.json
 .idea/
+
+# Personal Claude Code context (local wiki references)
+CLAUDE.local.md

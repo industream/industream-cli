@@ -196,8 +196,11 @@ else
 fi
 echo -e "  ${DIM}Installing dependencies...${NC}"
 cd "$CLI_DIR"
-if ! npm install --silent; then
-  echo -e "  ${RED}✗${NC} npm install failed"
+# Use `npm ci` (not `npm install`) to install from package-lock.json verbatim.
+# This prevents SemVer range drift pulling in unreviewed minor/patch versions
+# and guarantees reproducible installs across machines.
+if ! npm ci --silent; then
+  echo -e "  ${RED}✗${NC} npm ci failed"
   exit 1
 fi
 if ! npm run build --silent; then
