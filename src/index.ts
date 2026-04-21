@@ -34,11 +34,23 @@ program
 program
   .command("deploy")
   .description("Deploy an environment")
-  .option("--env <environment>", "Environment to deploy (prod, dev, staging)")
-  .option("--with-demo", "Include demo simulators")
+  .option("--env <environment>", "Environment to deploy (prod, dev, staging, or compose instance name)")
+  .option("--with-demo", "Include demo simulators (Swarm)")
+  .option("--with-workers", "Bring up workers alongside core services (Compose)")
+  .option("--with-uimaker", "Bring up UIMaker alongside core services (Compose)")
+  .option(
+    "--allow-compose-prod",
+    "Allow ComposeRuntime to proceed when NODE_ENV=production (bypass guard)",
+  )
   .option("-y, --yes", "Skip interactive prompts")
   .action((options) => {
-    runDeploy(options.env, { withDemo: options.withDemo, yes: options.yes });
+    runDeploy(options.env, {
+      withDemo: options.withDemo,
+      withWorkers: options.withWorkers,
+      withUimaker: options.withUimaker,
+      allowComposeProd: options.allowComposeProd,
+      yes: options.yes,
+    });
   });
 
 program
