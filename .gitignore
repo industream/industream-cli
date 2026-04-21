@@ -12,7 +12,7 @@ keys/private.jwk.json
 !.env.example
 *.secret
 *.secrets
-secrets/
+/secrets/
 tokens.txt
 *.token
 *.pem

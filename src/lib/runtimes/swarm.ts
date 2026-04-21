@@ -15,6 +15,8 @@ import {
 } from "../swarm-repo.js";
 import { getDeployFlags } from "../stack-filter.js";
 import { ensureRegistryLogin } from "../registry-login.js";
+import { SwarmSecrets } from "../secrets/swarm.js";
+import type { SecretsBackend } from "../secrets/index.js";
 import type {
   DeployOptions,
   Environment,
@@ -30,8 +32,11 @@ const DOCKER_REGISTRY = "842775dh.c1.gra9.container-registry.ovh.net";
 
 export class SwarmRuntime implements Runtime {
   public readonly name: RuntimeName = "swarm";
+  public readonly secrets: SecretsBackend;
 
-  constructor(private readonly config: IndustreamConfig) {}
+  constructor(private readonly config: IndustreamConfig) {
+    this.secrets = new SwarmSecrets(config);
+  }
 
   /**
    * Deploy the Swarm stack for `env`. Mirrors the logic currently in
