@@ -4,6 +4,7 @@
 // `platformDir/.env` under the `RUNTIME` key. Default is `swarm` for
 // backwards compatibility with existing installs.
 import type { IndustreamConfig } from "../config.js";
+import type { SecretsBackend } from "../secrets/index.js";
 import { loadEnvFile } from "../swarm-repo.js";
 import { SwarmRuntime } from "./swarm.js";
 import { ComposeRuntime } from "./compose.js";
@@ -15,6 +16,22 @@ export type Environment = string;
 export interface DeployOptions {
   withDemo?: boolean;
   yes?: boolean;
+  /**
+   * Compose-only: allow `ComposeRuntime.deploy()` to proceed when
+   * `NODE_ENV=production`. Swarm ignores this flag. Exposed on the CLI as
+   * `--allow-compose-prod` (wired from Commander in a follow-up PR).
+   */
+  allowComposeProd?: boolean;
+  /**
+   * Compose-only: bring up the workers alongside the core services.
+   * Passed through to `fm-instance.sh up` as `--workers`.
+   */
+  withWorkers?: boolean;
+  /**
+   * Compose-only: bring up the UIMaker instance alongside the core services.
+   * Passed through to `fm-instance.sh up` as `--uimaker`.
+   */
+  withUimaker?: boolean;
 }
 
 export interface LogsOptions {
@@ -38,7 +55,8 @@ export interface StackStatus {
 
 export interface Runtime {
   readonly name: RuntimeName;
-  deploy(env: Environment, opts: DeployOptions): Promise<void>;
+  readonly secrets: SecretsBackend;
+  deploy(env: Environment | undefined, opts: DeployOptions): Promise<void>;
   down(env: Environment): Promise<void>;
   status(): Promise<StackStatus>;
   logs(service: string | undefined, opts: LogsOptions): Promise<void>;
