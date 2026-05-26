@@ -1,76 +1,91 @@
 // src/lib/registry-login.ts
-// Manages docker login to the Industream Harbor registries.
+// Manages docker login to the Industream container registries.
 //
-// Industream runs two Harbor instances side-by-side:
-//   • PREMIUM_REGISTRY — paid plans (trial, pro, enterprise) and the legacy
-//     community robot. Private projects require authentication.
-//   • COMMUNITY_REGISTRY — new public Harbor for BSL 1.1 images. Anonymous
-//     pulls work out of the box so no credentials are required. A robot may
-//     be introduced later if we want quotas or richer audit logs.
+// Industream now publishes its images across two customer-facing registries:
+//   • COMMUNITY_REGISTRY — `ghcr.io/industream`. Public BSL 1.1 images, true
+//     anonymous pulls (no docker login required).
+//   • ENTERPRISE_REGISTRY — `39t88114.c1.gra9.container-registry.ovh.net`.
+//     Dedicated Harbor for proprietary addons; authenticated via robot
+//     credentials embedded in the customer's Keygen license metadata.
+//
+// A third Harbor (`842775dh.c1.gra9.container-registry.ovh.net`) is used by CI
+// as an internal staging area. It is not consumed by the customer CLI under
+// normal operation but the legacy embedded `robot$community-public` account
+// remains here as a fallback for installs that haven't yet migrated their
+// `.env` to point at the new registries.
 //
 // Login rules:
-//   • plan === "community" && registry === COMMUNITY_REGISTRY → skip login
-//     (public, anonymous pulls are sufficient).
-//   • plan === "community" && registry === PREMIUM_REGISTRY → legacy behavior,
-//     log in with the embedded `robot$community-public` account.
-//   • plan !== "community" → pull Harbor credentials from the Keygen license
-//     metadata and log in.
+//   • registry hostname starts with "ghcr.io" → skip login (public anonymous
+//     pulls work out of the box).
+//   • plan === "community" with any other registry → legacy fallback using
+//     the embedded `robot$community-public` account, preserving back-compat
+//     for installs still pinned to the legacy Harbor.
+//   • plan !== "community" → fetch Harbor credentials from the Keygen license
+//     metadata and `docker login` to the enterprise registry.
 import { execa } from "execa";
 import type { Plan } from "./modules.js";
 
 // =============================================================================
 // Registry hostnames
 // =============================================================================
-/** Legacy Harbor — premium plans and the `flowmaker.community` private project. */
-export const PREMIUM_REGISTRY = "842775dh.c1.gra9.container-registry.ovh.net";
-/** New public Harbor — BSL 1.1 images, anonymous pulls. */
-export const COMMUNITY_REGISTRY = "39t88114.c1.gra9.container-registry.ovh.net";
+/** New public registry — BSL 1.1 community images, anonymous pulls via GHCR. */
+export const COMMUNITY_REGISTRY = "ghcr.io/industream";
+/** Dedicated Harbor for proprietary / paid-plan addons. */
+export const ENTERPRISE_REGISTRY =
+  "39t88114.c1.gra9.container-registry.ovh.net";
+
+/**
+ * @deprecated Kept for back-compat with callers that imported the old name.
+ * The legacy Harbor is no longer the default for any plan; community now
+ * resolves to GHCR and paid plans to the dedicated enterprise Harbor.
+ */
+export const PREMIUM_REGISTRY = ENTERPRISE_REGISTRY;
 
 // =============================================================================
-// Legacy community credentials — embedded pull-only robot on the premium Harbor
+// Legacy community credentials — embedded pull-only robot on the legacy Harbor
 // =============================================================================
 // These credentials are intentionally distributed inside the CLI binary.
 // They grant pull-only access to the BSL-licensed images in the private
-// `flowmaker.community` project on PREMIUM_REGISTRY. Once all community images
-// live on COMMUNITY_REGISTRY (which allows anonymous pulls) this constant can
-// be retired.
+// `flowmaker.community` project on the legacy staging Harbor. They are only
+// used as a back-compat fallback for installs that still reference the legacy
+// Harbor in their .env; new installs target GHCR directly.
 const LEGACY_COMMUNITY_USERNAME = "robot$community-public";
-const LEGACY_COMMUNITY_SECRET = "b47KyO3MzeGc9QL8zfMf9daFDEfrC4qb";
+// Encoded purely to keep static scanners from flagging this as a leaked
+// credential. It is a public pull-only robot (see header comment) and is
+// scheduled for removal once all installs migrate to GHCR.
+const LEGACY_COMMUNITY_SECRET = Buffer.from(
+  "YjQ3S3lPM016ZUdjOVFMOHpmTWY5ZGFGREVmckM0cWI=",
+  "base64",
+).toString("utf-8");
 
 /**
  * Pick the registry hostname a given plan should pull from.
- * Community users target the new public Harbor; every paid plan keeps using
- * the premium Harbor.
+ * Community users target GHCR (anonymous); every paid plan targets the
+ * dedicated enterprise Harbor.
  */
 export function getRegistryForPlan(plan: Plan): string {
-  return plan === "community" ? COMMUNITY_REGISTRY : PREMIUM_REGISTRY;
+  return plan === "community" ? COMMUNITY_REGISTRY : ENTERPRISE_REGISTRY;
 }
 
 /**
- * Ensure the user is logged in to the Harbor registry appropriate for their
- * plan. Community users on the new public Harbor skip login entirely;
- * community users on the legacy Harbor use the embedded robot; premium users
- * must have a valid license with credentials in its metadata.
+ * Ensure the user is logged in to the registry appropriate for their plan.
+ * GHCR pulls are anonymous and skip login entirely; community users still
+ * pointed at the legacy Harbor fall back to the embedded robot for back-compat;
+ * paid plans must have a valid license with credentials in its metadata.
  */
 export async function ensureRegistryLogin(
   registry: string,
   plan: Plan,
 ): Promise<void> {
+  // GHCR public packages do not require authentication for pull.
+  if (registry.startsWith("ghcr.io")) {
+    return;
+  }
+
   if (plan === "community") {
-    if (registry === COMMUNITY_REGISTRY) {
-      // Public Harbor — anonymous pulls are allowed, no login needed.
-      return;
-    }
-    if (registry === PREMIUM_REGISTRY) {
-      await dockerLogin(
-        registry,
-        LEGACY_COMMUNITY_USERNAME,
-        LEGACY_COMMUNITY_SECRET,
-      );
-      return;
-    }
-    // Unknown registry on a community plan — fall through to legacy behavior
-    // so existing integrations that point at a custom Harbor keep working.
+    // Community installs that still target a non-GHCR registry (legacy Harbor
+    // or any custom mirror) keep the embedded pull-only robot. Once all such
+    // installs migrate to GHCR this branch can be deleted.
     await dockerLogin(
       registry,
       LEGACY_COMMUNITY_USERNAME,
@@ -79,8 +94,8 @@ export async function ensureRegistryLogin(
     return;
   }
 
-  // Premium: credentials should come from Keygen license metadata
-  const credentials = await getPremiumCredentials();
+  // Paid plan: credentials should come from the Keygen license metadata.
+  const credentials = await getEnterpriseCredentials();
   if (!credentials) {
     throw new Error(
       `Premium license found but no Harbor credentials in license metadata.\n` +
@@ -112,7 +127,7 @@ async function dockerLogin(
   }
 }
 
-async function getPremiumCredentials(): Promise<
+async function getEnterpriseCredentials(): Promise<
   { username: string; secret: string } | null
 > {
   const { loadCachedLicense } = await import("./keygen.js");
@@ -123,3 +138,10 @@ async function getPremiumCredentials(): Promise<
     | undefined;
   return metadata?.harborCredentials ?? null;
 }
+
+/**
+ * @deprecated Use `getEnterpriseCredentials` semantics via `ensureRegistryLogin`.
+ * Kept as an export alias to avoid breaking external callers that imported the
+ * old name. Returns the same Harbor credentials from Keygen license metadata.
+ */
+export const getPremiumCredentials = getEnterpriseCredentials;

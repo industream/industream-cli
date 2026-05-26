@@ -288,11 +288,39 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         // Step 4: Setup
         setStep("setup");
 
+        // Persist both registry hostnames in .env so stack/compose files can
+        // resolve image paths per service (community → GHCR, enterprise → Harbor).
+        // DOCKER_REGISTRY is kept as a back-compat alias for older stack files
+        // that still reference the single-registry variable.
+        const {
+          ensureRegistryLogin,
+          getRegistryForPlan,
+          COMMUNITY_REGISTRY,
+          ENTERPRISE_REGISTRY,
+        } = await import("../lib/registry-login.js");
+        await updateEnvValue(
+          platformDirectory,
+          "COMMUNITY_REGISTRY",
+          COMMUNITY_REGISTRY,
+        );
+        await updateEnvValue(
+          platformDirectory,
+          "ENTERPRISE_REGISTRY",
+          ENTERPRISE_REGISTRY,
+        );
+        const dockerRegistry = getRegistryForPlan(plan);
+        await updateEnvValue(
+          platformDirectory,
+          "DOCKER_REGISTRY",
+          dockerRegistry,
+        );
+        console.log(
+          `  Configured registries: community=${COMMUNITY_REGISTRY}, enterprise=${ENTERPRISE_REGISTRY}`,
+        );
+
         // Check / setup Docker registry login
         setStatusMessage("Checking registry access...");
         setProgressLine("");
-        const dockerRegistry = "842775dh.c1.gra9.container-registry.ovh.net";
-        const { ensureRegistryLogin } = await import("../lib/registry-login.js");
         await ensureRegistryLogin(dockerRegistry, plan);
 
         setStatusMessage("Deploying Traefik...");
