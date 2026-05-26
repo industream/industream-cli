@@ -335,8 +335,8 @@ jobs:
 | 5 | 842775dh structure | **Unchanged**. Stays as `flowmaker.core/*`, `flowmaker.boxes/*`, etc. The dispatcher reads from these paths and writes to GHCR or 39t88114 |
 | 6 | `modules.json` schema | Extend with optional `enterpriseVariant` field (string). Presence indicates a dual-variant worker; value is the image path of the `-ee` variant |
 | 7 | GHCR billing | **Not needed** — public packages have unlimited storage and bandwidth on the free tier |
-| 8 | Dispatcher repo location | TBD: new `industream/registry-dispatcher` repo, or workflow inside `industream-stack/.github/workflows/` |
-| 9 | Cutover date | TBD: after Bernegger stable or sooner |
+| 8 | Dispatcher repo location | **Inside `industream-stack/.github/workflows/dispatch-image.yml`**. YAGNI — promote to a dedicated repo only if the workflow grows past ~200 lines or other repos start reusing it |
+| 9 | Cutover date | **After Bernegger migration is stable.** Three registries (842775dh + GHCR + 39t88114) coexist during the transition |
 | 10 | 842775dh retention | Out of scope of this doc — handled separately by ops team |
 
 ### `modules.json` schema (with dual-variant support)
