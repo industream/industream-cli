@@ -34,8 +34,10 @@ vi.mock("../../lib/registry-login.js", () => ({
   ensureRegistryLogin: vi.fn(),
   getRegistryForPlan: (plan: string): string =>
     plan === "community"
-      ? "39t88114.c1.gra9.container-registry.ovh.net"
-      : "842775dh.c1.gra9.container-registry.ovh.net",
+      ? "ghcr.io/industream"
+      : "39t88114.c1.gra9.container-registry.ovh.net",
+  COMMUNITY_REGISTRY: "ghcr.io/industream",
+  ENTERPRISE_REGISTRY: "39t88114.c1.gra9.container-registry.ovh.net",
 }));
 
 import { execa } from "execa";
@@ -295,17 +297,26 @@ describe("runDeploy — execa call sequence snapshots", () => {
     `);
   });
 
-  it("community plan targets the new public Harbor", async () => {
+  it("community plan resolves to GHCR (no docker login required)", async () => {
     await runDeploy("prod", { withDemo: false });
 
+    // The runtime still calls ensureRegistryLogin, but with the GHCR host —
+    // ensureRegistryLogin itself is responsible for skipping the docker login.
     expect(mockedEnsureLogin).toHaveBeenCalledTimes(1);
     expect(mockedEnsureLogin).toHaveBeenCalledWith(
-      "39t88114.c1.gra9.container-registry.ovh.net",
+      "ghcr.io/industream",
       "community",
     );
+
+    // Verify that no docker login execa call was emitted for community.
+    const dockerLoginCalls = mockedExeca.mock.calls.filter((call) => {
+      const args = call[1] as string[] | undefined;
+      return Array.isArray(args) && args.includes("login");
+    });
+    expect(dockerLoginCalls).toHaveLength(0);
   });
 
-  it("premium plan targets the legacy premium Harbor", async () => {
+  it("enterprise plan targets the dedicated enterprise Harbor", async () => {
     mockedGetFlags.mockResolvedValue({
       plan: "enterprise",
       customer: "Acme Corp",
@@ -321,7 +332,7 @@ describe("runDeploy — execa call sequence snapshots", () => {
 
     expect(mockedEnsureLogin).toHaveBeenCalledTimes(1);
     expect(mockedEnsureLogin).toHaveBeenCalledWith(
-      "842775dh.c1.gra9.container-registry.ovh.net",
+      "39t88114.c1.gra9.container-registry.ovh.net",
       "enterprise",
     );
   });
