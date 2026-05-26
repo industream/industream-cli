@@ -21,6 +21,9 @@ import { join, resolve } from "node:path";
 import type { IndustreamConfig } from "../config.js";
 import { ComposeSecrets } from "../secrets/compose.js";
 import type { SecretsBackend } from "../secrets/index.js";
+import { getDeployFlags } from "../stack-filter.js";
+import { getRegistryForPlan } from "../registry-login.js";
+import type { Plan } from "../modules.js";
 import { resolvePlatformDir, parseEnvFile } from "../swarm-repo.js";
 import type {
   DeployOptions,
@@ -70,6 +73,16 @@ export class ComposeRuntime implements Runtime {
     const scriptsDir = await getComposeScriptsDir(this.config);
     const script = await requireScript(scriptsDir, "fm-instance.sh");
 
+    // Resolve the plan and the matching registry so `fm-instance.sh` pulls
+    // from the right Harbor. Community → public Harbor (anonymous pulls);
+    // every paid plan → premium Harbor (authenticated pulls handled by the
+    // bash script via `docker login`, which we do not do from TS here — the
+    // compose flow assumes the user is already logged in when needed).
+    const platformDir = resolvePlatformDir(this.config.platformDir);
+    const deployFlags = await getDeployFlags(platformDir);
+    const plan = deployFlags.plan as Plan;
+    const registry = getRegistryForPlan(plan);
+
     const args: string[] = ["up", instance];
     if (options.withWorkers) args.push("--workers");
     if (options.withUimaker) args.push("--uimaker");
@@ -77,6 +90,10 @@ export class ComposeRuntime implements Runtime {
     await execa(script, args, {
       cwd: scriptsDir,
       stdio: "inherit",
+      env: {
+        ...process.env,
+        DOCKER_REGISTRY: registry,
+      },
     });
 
     const configHubUrl = await resolveConfigHubUrl(this.config, instance);

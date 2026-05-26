@@ -1,37 +1,81 @@
 // src/lib/registry-login.ts
-// Manages docker login to the Industream Harbor registry.
+// Manages docker login to the Industream Harbor registries.
 //
-// - Community users (no license or plan === "community"): logs in with
-//   an embedded public-knowledge pull-only robot account that has access
-//   to the private `flowmaker.community` project. The credentials are
-//   intentionally embedded in the CLI so community users get zero-friction
-//   access, but we retain visibility via Harbor audit logs.
-// - Premium users (paid license): uses the Harbor credentials stored in
-//   their Keygen license metadata.
+// Industream runs two Harbor instances side-by-side:
+//   • PREMIUM_REGISTRY — paid plans (trial, pro, enterprise) and the legacy
+//     community robot. Private projects require authentication.
+//   • COMMUNITY_REGISTRY — new public Harbor for BSL 1.1 images. Anonymous
+//     pulls work out of the box so no credentials are required. A robot may
+//     be introduced later if we want quotas or richer audit logs.
+//
+// Login rules:
+//   • plan === "community" && registry === COMMUNITY_REGISTRY → skip login
+//     (public, anonymous pulls are sufficient).
+//   • plan === "community" && registry === PREMIUM_REGISTRY → legacy behavior,
+//     log in with the embedded `robot$community-public` account.
+//   • plan !== "community" → pull Harbor credentials from the Keygen license
+//     metadata and log in.
 import { execa } from "execa";
 import type { Plan } from "./modules.js";
 
 // =============================================================================
-// Community credentials — embedded pull-only robot on flowmaker.community
+// Registry hostnames
+// =============================================================================
+/** Legacy Harbor — premium plans and the `flowmaker.community` private project. */
+export const PREMIUM_REGISTRY = "842775dh.c1.gra9.container-registry.ovh.net";
+/** New public Harbor — BSL 1.1 images, anonymous pulls. */
+export const COMMUNITY_REGISTRY = "39t88114.c1.gra9.container-registry.ovh.net";
+
+// =============================================================================
+// Legacy community credentials — embedded pull-only robot on the premium Harbor
 // =============================================================================
 // These credentials are intentionally distributed inside the CLI binary.
 // They grant pull-only access to the BSL-licensed images in the private
-// `flowmaker.community` project. This lets us track usage and revoke if
-// abused, without requiring any signup flow for community users.
-const COMMUNITY_USERNAME = "robot$community-public";
-const COMMUNITY_SECRET = "b47KyO3MzeGc9QL8zfMf9daFDEfrC4qb";
+// `flowmaker.community` project on PREMIUM_REGISTRY. Once all community images
+// live on COMMUNITY_REGISTRY (which allows anonymous pulls) this constant can
+// be retired.
+const LEGACY_COMMUNITY_USERNAME = "robot$community-public";
+const LEGACY_COMMUNITY_SECRET = "b47KyO3MzeGc9QL8zfMf9daFDEfrC4qb";
+
+/**
+ * Pick the registry hostname a given plan should pull from.
+ * Community users target the new public Harbor; every paid plan keeps using
+ * the premium Harbor.
+ */
+export function getRegistryForPlan(plan: Plan): string {
+  return plan === "community" ? COMMUNITY_REGISTRY : PREMIUM_REGISTRY;
+}
 
 /**
  * Ensure the user is logged in to the Harbor registry appropriate for their
- * plan. Community users get auto-login with the embedded public robot.
- * Premium users must have a valid license with credentials in its metadata.
+ * plan. Community users on the new public Harbor skip login entirely;
+ * community users on the legacy Harbor use the embedded robot; premium users
+ * must have a valid license with credentials in its metadata.
  */
 export async function ensureRegistryLogin(
   registry: string,
   plan: Plan,
 ): Promise<void> {
   if (plan === "community") {
-    await dockerLogin(registry, COMMUNITY_USERNAME, COMMUNITY_SECRET);
+    if (registry === COMMUNITY_REGISTRY) {
+      // Public Harbor — anonymous pulls are allowed, no login needed.
+      return;
+    }
+    if (registry === PREMIUM_REGISTRY) {
+      await dockerLogin(
+        registry,
+        LEGACY_COMMUNITY_USERNAME,
+        LEGACY_COMMUNITY_SECRET,
+      );
+      return;
+    }
+    // Unknown registry on a community plan — fall through to legacy behavior
+    // so existing integrations that point at a custom Harbor keep working.
+    await dockerLogin(
+      registry,
+      LEGACY_COMMUNITY_USERNAME,
+      LEGACY_COMMUNITY_SECRET,
+    );
     return;
   }
 

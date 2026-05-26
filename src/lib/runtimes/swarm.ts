@@ -14,7 +14,10 @@ import {
   loadEnvFile,
 } from "../swarm-repo.js";
 import { getDeployFlags } from "../stack-filter.js";
-import { ensureRegistryLogin } from "../registry-login.js";
+import {
+  ensureRegistryLogin,
+  getRegistryForPlan,
+} from "../registry-login.js";
 import { SwarmSecrets } from "../secrets/swarm.js";
 import type { SecretsBackend } from "../secrets/index.js";
 import type {
@@ -28,7 +31,6 @@ import type {
 } from "./index.js";
 
 const SWARM_ENVIRONMENTS: Environment[] = ["prod", "dev", "staging"];
-const DOCKER_REGISTRY = "842775dh.c1.gra9.container-registry.ovh.net";
 
 export class SwarmRuntime implements Runtime {
   public readonly name: RuntimeName = "swarm";
@@ -68,8 +70,11 @@ export class SwarmRuntime implements Runtime {
       | "pro"
       | "enterprise";
 
-    // Ensure registry login (community = embedded robot, premium = license creds)
-    await ensureRegistryLogin(DOCKER_REGISTRY, plan);
+    // Pick the right Harbor per plan: community pulls from the public Harbor
+    // (anonymous, no login), everything else authenticates to the premium
+    // Harbor with the Keygen-provided credentials.
+    const registry = getRegistryForPlan(plan);
+    await ensureRegistryLogin(registry, plan);
 
     // Regenerate domain-dependent configs (self-signed certs + UIFusion JSON).
     // This ensures any change to INDUSTREAM_DOMAIN or TLS_MODE in .env is picked

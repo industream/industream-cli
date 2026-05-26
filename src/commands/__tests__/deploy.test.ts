@@ -32,6 +32,10 @@ vi.mock("../../lib/stack-filter.js", () => ({
 
 vi.mock("../../lib/registry-login.js", () => ({
   ensureRegistryLogin: vi.fn(),
+  getRegistryForPlan: (plan: string): string =>
+    plan === "community"
+      ? "39t88114.c1.gra9.container-registry.ovh.net"
+      : "842775dh.c1.gra9.container-registry.ovh.net",
 }));
 
 import { execa } from "execa";
@@ -291,13 +295,34 @@ describe("runDeploy — execa call sequence snapshots", () => {
     `);
   });
 
-  it("ensures registry login is called with resolved plan", async () => {
+  it("community plan targets the new public Harbor", async () => {
+    await runDeploy("prod", { withDemo: false });
+
+    expect(mockedEnsureLogin).toHaveBeenCalledTimes(1);
+    expect(mockedEnsureLogin).toHaveBeenCalledWith(
+      "39t88114.c1.gra9.container-registry.ovh.net",
+      "community",
+    );
+  });
+
+  it("premium plan targets the legacy premium Harbor", async () => {
+    mockedGetFlags.mockResolvedValue({
+      plan: "enterprise",
+      customer: "Acme Corp",
+      licensedModuleCount: 10,
+      totalModuleCount: 10,
+      excludedServices: [],
+      entitlements: ["PRODUCT_DATACATALOG"],
+      online: true,
+      valid: true,
+    });
+
     await runDeploy("prod", { withDemo: false });
 
     expect(mockedEnsureLogin).toHaveBeenCalledTimes(1);
     expect(mockedEnsureLogin).toHaveBeenCalledWith(
       "842775dh.c1.gra9.container-registry.ovh.net",
-      "community",
+      "enterprise",
     );
   });
 });
