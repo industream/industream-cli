@@ -324,13 +324,60 @@ jobs:
 
 ---
 
-## 9. Decisions still needed
+## 9. Decisions
 
-1. **`ironstream/*` classification** : `proprietary` (enterprise-only) — confirmed?
-2. **Repo for the dispatcher** : new `industream/registry-dispatcher` repo, or workflow inside `industream-stack/.github/workflows/`?
-3. **GHCR billing** : enable GitHub Packages billing on the `industream` org — done? Free tier covers most usage.
-4. **Date cible cutover** : after Bernegger migration is stable (mid-Q3?) or sooner?
-5. **Harbor retention** on `842775dh` : keep last N tags per repo? Auto-delete tags older than X days?
+| # | Decision | Choice |
+|---|---|---|
+| 1 | `ironstream/*` classification | **`proprietary`** (enterprise-only) |
+| 2 | Dispatcher implementation | **GH Actions workflow** reading `modules.json`, **not** Harbor replication (Harbor replication would require restructuring 842775dh into `community/*` and `enterprise/*` projects, which is a breaking change for existing installs) |
+| 3 | Image naming (single-variant) | **Plain name, no suffix** — the registry hostname already encodes the plan (GHCR = community, 39t88114 = enterprise) |
+| 4 | Image naming (dual-variant, future) | **Grafana-style `-ee` suffix on the enterprise variant only**. Community keeps the plain name. Example: `flow-box-data-logger` (community on GHCR) + `flow-box-data-logger-ee` (enterprise on 39t88114). Rationale: 99% of workers are single-variant today, no breaking change required; the suffix appears **only when** a worker actually grows an enterprise variant. Rejected: GitLab-style `-ce/-ee` everywhere (forces immediate rename of every existing image) |
+| 5 | 842775dh structure | **Unchanged**. Stays as `flowmaker.core/*`, `flowmaker.boxes/*`, etc. The dispatcher reads from these paths and writes to GHCR or 39t88114 |
+| 6 | `modules.json` schema | Extend with optional `enterpriseVariant` field (string). Presence indicates a dual-variant worker; value is the image path of the `-ee` variant |
+| 7 | GHCR billing | **Not needed** — public packages have unlimited storage and bandwidth on the free tier |
+| 8 | Dispatcher repo location | TBD: new `industream/registry-dispatcher` repo, or workflow inside `industream-stack/.github/workflows/` |
+| 9 | Cutover date | TBD: after Bernegger stable or sooner |
+| 10 | 842775dh retention | Out of scope of this doc — handled separately by ops team |
+
+### `modules.json` schema (with dual-variant support)
+
+```jsonc
+// Single-variant community worker — most cases today
+{
+  "id": "worker-timer",
+  "license": "bsl",
+  "imagePattern": "flowmaker.boxes/flow-box-timer"
+}
+
+// Single-variant enterprise worker — premium-only protocols
+{
+  "id": "worker-opc-ua-client",
+  "license": "proprietary",
+  "imagePattern": "flowmaker.boxes/flow-box-opc-ua-client"
+}
+
+// Future dual-variant worker — has both community and enterprise builds
+{
+  "id": "worker-data-logger",
+  "license": "bsl",
+  "imagePattern": "flowmaker.boxes/flow-box-data-logger",
+  "enterpriseVariant": "flowmaker.boxes/flow-box-data-logger-ee"
+}
+```
+
+### Dispatcher routing logic
+
+```
+For each image pushed to 842775dh/<path>:<tag>:
+  1. Lookup modules.json:
+     - Find module where `imagePattern == <path>` OR `enterpriseVariant == <path>`
+  2. If module.license == "bsl" AND <path> matches imagePattern:
+     → crane copy 842775dh/<path>:<tag> ghcr.io/industream/<path>:<tag>
+  3. If module.license == "proprietary" AND <path> matches imagePattern:
+     → crane copy 842775dh/<path>:<tag> 39t88114/<path>:<tag>
+  4. If <path> matches module.enterpriseVariant:
+     → crane copy 842775dh/<path>:<tag> 39t88114/<path>:<tag>
+```
 
 ---
 
