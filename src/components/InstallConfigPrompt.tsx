@@ -2,8 +2,10 @@ import React, { useState } from "react";
 import { Text, Box, useInput } from "ink";
 
 type TlsMode = "selfsigned" | "letsencrypt";
+type Runtime = "swarm" | "compose";
 type Phase =
   | "menu"
+  | "edit-runtime"
   | "edit-domain"
   | "edit-tls"
   | "edit-license"
@@ -12,26 +14,30 @@ type Phase =
 interface InstallConfigPromptProps {
   defaultDomain: string;
   defaultTls: TlsMode;
+  defaultRuntime: Runtime;
   initialLicenseLabel: string;
   activateLicense: (key: string) => Promise<{ ok: boolean; label: string; error?: string }>;
-  onComplete: (config: { domain: string; tls: TlsMode }) => void;
+  onComplete: (config: { domain: string; tls: TlsMode; runtime: Runtime }) => void;
 }
 
 export function InstallConfigPrompt({
   defaultDomain,
   defaultTls,
+  defaultRuntime,
   initialLicenseLabel,
   activateLicense,
   onComplete,
 }: InstallConfigPromptProps): React.ReactElement {
   const [phase, setPhase] = useState<Phase>("menu");
-  const [menuIndex, setMenuIndex] = useState<number>(0); // 0=env, 1=license, 2=install
+  const [menuIndex, setMenuIndex] = useState<number>(0); // 0=runtime, 1=env, 2=license, 3=install
 
+  const [runtime, setRuntime] = useState<Runtime>(defaultRuntime);
   const [domain, setDomain] = useState(defaultDomain);
   const [tls, setTls] = useState<TlsMode>(defaultTls);
   const [licenseLabel, setLicenseLabel] = useState(initialLicenseLabel);
   const [licenseMessage, setLicenseMessage] = useState<string>("");
 
+  const [runtimeIndex, setRuntimeIndex] = useState<number>(defaultRuntime === "compose" ? 1 : 0);
   const [domainInput, setDomainInput] = useState<string>(defaultDomain);
   const [tlsIndex, setTlsIndex] = useState<number>(defaultTls === "letsencrypt" ? 1 : 0);
   const [licenseInput, setLicenseInput] = useState<string>("");
@@ -39,19 +45,40 @@ export function InstallConfigPrompt({
   useInput((input, key) => {
     if (phase === "menu") {
       if (key.upArrow) setMenuIndex((i) => Math.max(0, i - 1));
-      if (key.downArrow) setMenuIndex((i) => Math.min(2, i + 1));
+      if (key.downArrow) setMenuIndex((i) => Math.min(3, i + 1));
       if (key.return) {
         if (menuIndex === 0) {
+          setRuntimeIndex(runtime === "compose" ? 1 : 0);
+          setPhase("edit-runtime");
+        } else if (menuIndex === 1) {
           setDomainInput(domain);
           setTlsIndex(tls === "letsencrypt" ? 1 : 0);
           setPhase("edit-domain");
-        } else if (menuIndex === 1) {
+        } else if (menuIndex === 2) {
           setLicenseInput("");
           setLicenseMessage("");
           setPhase("edit-license");
         } else {
-          onComplete({ domain, tls });
+          onComplete({ domain, tls, runtime });
         }
+      }
+      return;
+    }
+
+    if (phase === "edit-runtime") {
+      if (key.upArrow || key.downArrow) {
+        setRuntimeIndex((index) => (index === 0 ? 1 : 0));
+        return;
+      }
+      if (key.return) {
+        const newRuntime: Runtime = runtimeIndex === 0 ? "swarm" : "compose";
+        setRuntime(newRuntime);
+        setPhase("menu");
+        setMenuIndex(1);
+        return;
+      }
+      if (key.escape) {
+        setPhase("menu");
       }
       return;
     }
@@ -85,7 +112,7 @@ export function InstallConfigPrompt({
         const newTls: TlsMode = tlsIndex === 0 ? "selfsigned" : "letsencrypt";
         setTls(newTls);
         setPhase("menu");
-        setMenuIndex(2);
+        setMenuIndex(3);
         return;
       }
       if (key.escape) {
@@ -132,6 +159,27 @@ export function InstallConfigPrompt({
       }
     }
   });
+
+  if (phase === "edit-runtime") {
+    return (
+      <Box flexDirection="column" marginY={1}>
+        <Text bold>What do you want to install?</Text>
+        <Box flexDirection="column" marginLeft={2} marginTop={1}>
+          <Text color={runtimeIndex === 0 ? "cyan" : undefined}>
+            {runtimeIndex === 0 ? "❯ " : "  "}Production — Docker Swarm{" "}
+            <Text dimColor>(raft secrets, replicated services, multi-env)</Text>
+          </Text>
+          <Text color={runtimeIndex === 1 ? "cyan" : undefined}>
+            {runtimeIndex === 1 ? "❯ " : "  "}Development — Docker Compose{" "}
+            <Text dimColor>(multi-instance, Caddy, no swarm setup required)</Text>
+          </Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text dimColor>↑/↓ to select, Enter to confirm, Esc to cancel</Text>
+        </Box>
+      </Box>
+    );
+  }
 
   if (phase === "edit-domain") {
     return (
@@ -209,7 +257,17 @@ export function InstallConfigPrompt({
       <Box flexDirection="column" marginTop={1}>
         <Box flexDirection="column">
           <Text color={menuIndex === 0 ? "cyan" : undefined}>
-            {menuIndex === 0 ? "❯ " : "  "}1. Define your environment
+            {menuIndex === 0 ? "❯ " : "  "}1. Choose runtime
+          </Text>
+          <Box marginLeft={5}>
+            <Text dimColor>
+              {runtime === "swarm" ? "Production — Docker Swarm" : "Development — Docker Compose"}
+            </Text>
+          </Box>
+        </Box>
+        <Box flexDirection="column" marginTop={1}>
+          <Text color={menuIndex === 1 ? "cyan" : undefined}>
+            {menuIndex === 1 ? "❯ " : "  "}2. Define your environment
           </Text>
           <Box flexDirection="column" marginLeft={5}>
             <Text dimColor>Domain:   {domain}</Text>
@@ -217,16 +275,16 @@ export function InstallConfigPrompt({
           </Box>
         </Box>
         <Box flexDirection="column" marginTop={1}>
-          <Text color={menuIndex === 1 ? "cyan" : undefined}>
-            {menuIndex === 1 ? "❯ " : "  "}2. Activate license
+          <Text color={menuIndex === 2 ? "cyan" : undefined}>
+            {menuIndex === 2 ? "❯ " : "  "}3. Activate license
           </Text>
           <Box marginLeft={5}>
             <Text dimColor>Current: {licenseLabel}</Text>
           </Box>
         </Box>
         <Box marginTop={1}>
-          <Text color={menuIndex === 2 ? "cyan" : undefined}>
-            {menuIndex === 2 ? "❯ " : "  "}3. Install
+          <Text color={menuIndex === 3 ? "cyan" : undefined}>
+            {menuIndex === 3 ? "❯ " : "  "}4. Install
           </Text>
         </Box>
       </Box>

@@ -107,7 +107,7 @@ async function runScript(
   await subprocess;
 }
 
-function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }: { environment?: string; domain?: string; tls?: string }): React.ReactElement {
+function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, runtime: cliRuntime }: { environment?: string; domain?: string; tls?: string; runtime?: string }): React.ReactElement {
   const { exit } = useApp();
   const [introDone, setIntroDone] = useState(false);
   const [step, setStep] = useState<Step>("prerequisites");
@@ -131,6 +131,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
   const [configDone, setConfigDone] = useState(!needsPrompt);
   const [domain, setDomain] = useState(cliDomain ?? "industream.platform.lan");
   const [tls, setTls] = useState<string>(cliTls ?? "selfsigned");
+  const [runtimeName, setRuntimeName] = useState<string>(cliRuntime === "compose" ? "compose" : "swarm");
   const [licenseLabel, setLicenseLabel] = useState<string>("Community (no license)");
 
   // Load cached license info once for the interactive menu
@@ -215,12 +216,16 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
           }
         }
 
-        // Set domain and TLS mode in .env before deploy
-        // Default: selfsigned. letsencrypt only when explicitly requested via --tls.
+        // Set domain, TLS mode and runtime in .env before deploy.
+        // The runtime is captured either from --runtime CLI flag or via the
+        // interactive prompt step; it's persisted in .env so that subsequent
+        // `industream deploy` invocations route to the right runtime via
+        // getRuntime() in src/lib/runtimes/index.ts.
         const tlsMode = tls === "letsencrypt" ? "letsencrypt" : "selfsigned";
-        setStatusMessage(`Configuring domain: ${domain} (TLS: ${tlsMode})`);
+        setStatusMessage(`Configuring domain: ${domain} (TLS: ${tlsMode}, runtime: ${runtimeName})`);
         await updateEnvValue(platformDirectory, "INDUSTREAM_DOMAIN", domain);
         await updateEnvValue(platformDirectory, "TLS_MODE", tlsMode);
+        await updateEnvValue(platformDirectory, "RUNTIME", runtimeName);
         if (tlsMode === "letsencrypt") {
           await updateEnvValue(platformDirectory, "ACME_EMAIL", "admin@industream.com");
         }
@@ -434,7 +439,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
     );
   }
 
-  // Interactive config prompt (domain + TLS mode)
+  // Interactive config prompt (runtime + domain + TLS mode)
   if (!configDone) {
     return (
       <Box flexDirection="column">
@@ -442,11 +447,13 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
         <InstallConfigPrompt
           defaultDomain={domain}
           defaultTls={(tls === "letsencrypt" ? "letsencrypt" : "selfsigned")}
+          defaultRuntime={runtimeName === "compose" ? "compose" : "swarm"}
           initialLicenseLabel={licenseLabel}
           activateLicense={handleActivateLicense}
           onComplete={(config) => {
             setDomain(config.domain);
             setTls(config.tls);
+            setRuntimeName(config.runtime);
             setConfigDone(true);
           }}
         />
@@ -514,7 +521,12 @@ async function confirmReinstall(): Promise<boolean> {
   });
 }
 
-export async function runInstall(environment?: string, domain?: string, tls?: string): Promise<void> {
+export async function runInstall(
+  environment?: string,
+  domain?: string,
+  tls?: string,
+  runtime?: string,
+): Promise<void> {
   const alreadyInstalled = await isPlatformInstalled("~/industream-platform");
   if (alreadyInstalled) {
     const confirmed = await confirmReinstall();
@@ -523,5 +535,12 @@ export async function runInstall(environment?: string, domain?: string, tls?: st
       return;
     }
   }
-  render(<InstallWizard environment={environment ?? "prod"} domain={domain} tls={tls} />);
+  render(
+    <InstallWizard
+      environment={environment ?? "prod"}
+      domain={domain}
+      tls={tls}
+      runtime={runtime}
+    />,
+  );
 }

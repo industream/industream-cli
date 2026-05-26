@@ -114,8 +114,13 @@ program
   .option("--env <environment>", "Environment to deploy (prod, dev, staging)", "prod")
   .option("--domain <domain>", "Platform domain name", "industream.platform.lan")
   .option("--tls <mode>", "TLS mode (selfsigned, letsencrypt). Default: selfsigned")
+  .option(
+    "--runtime <runtime>",
+    "Container orchestrator (swarm or compose). Locked in .env. Default: swarm",
+    "swarm",
+  )
   .action((options) => {
-    runInstall(options.env, options.domain, options.tls);
+    runInstall(options.env, options.domain, options.tls, options.runtime);
   });
 
 program
