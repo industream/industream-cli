@@ -266,7 +266,17 @@ This is the biggest split between the two runtimes.
 
 To avoid maintaining two label sets, the compose override is **generated** from `docker-stack.yml` (see §3.8).
 
-### 3.8 Compose override generator
+### 3.8 Registries — dual Harbor (BSL + premium)
+
+Since April 2026 the community BSL images live on a dedicated public Harbor (`39t88114.c1.gra9.container-registry.ovh.net`, anonymous pull), while premium add-ons stay on the legacy Harbor (`842775dh…`) behind per-plan robot credentials. Impact on the runtime split:
+
+- **Compose runtime** pulls exclusively from the new Harbor by default, no `docker login` step. A future `docker-compose.community.yml` is the user-facing file.
+- **Swarm runtime** resolves the registry per module `license` field in `modules.json` — BSL modules → new Harbor, premium modules → old Harbor. `registry-login.ts` must call `docker login` only for the premium side.
+- **Secrets backend**: registry credentials in Swarm stay as `docker secret` entries (`registry_community_token` for legacy compat, `registry_premium_token` for the old Harbor). Compose uses a single file-based secret or no credentials at all for BSL.
+
+Detailed inventory, exclusions and migration status: see `industream-cli/docs/HARBOR-MIGRATION.md`.
+
+### 3.9 Compose override generator
 
 A script `scripts/generate/compose-override.sh` that:
 1. Reads `docker-stack.yml`.
@@ -333,7 +343,8 @@ Once phase 4 is stable, `fm` becomes a thin wrapper that redirects to `industrea
 - Files `docker-stack.*.yml` remain **the single source of truth**. The compose override is derived from them, never the other way.
 - Production workflow is unchanged: `industream deploy --env prod` still calls `scripts/deploy-swarm.sh`.
 - Existing Swarm secrets are not migrated.
-- Registries, licensing, backups: untouched.
+- Licensing, backups: untouched.
+- Registries: the **premium** Harbor (`842775dh…`) is untouched. A **second** Harbor (`39t88114…`) was added in April 2026 for public BSL images — consumer-side code must resolve per `license` (see §3.8 and `HARBOR-MIGRATION.md`).
 
 ---
 

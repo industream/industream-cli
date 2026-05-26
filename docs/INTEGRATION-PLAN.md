@@ -210,6 +210,17 @@ Swarm: 3 hardcoded envs (`prod/dev/staging`). Compose (`fm`): free-form instance
 ### 6.5 Reverse proxy in Compose
 Compose uses Caddy (from `fm`), Swarm uses Traefik. `ComposeRuntime.deploy()` must add `traefik` to `excludedServices` automatically. **Decision**: bundle a Caddyfile template in `scripts/compose/caddy/` or require user-provided one? Recommendation: bundle a default, let instance overrides customize.
 
+### 6.6 Community Harbor migration (✅ clone done, consumer rewiring pending)
+
+The BSL community images were moved from the legacy mirror project `842775dh…/flowmaker.community/*` to a dedicated public Harbor `39t88114.c1.gra9.container-registry.ovh.net` with 7 projects, 29 repos, 139 tags and anonymous pull. Premium workers (OPC-UA, RTSP, luminosity, GStreamer, audio, MS SQL, OSIsoft PI), `backup-monitor` and `monitoring/cadvisor` stay on the old Harbor under paid-plan robot credentials.
+
+Impact on this plan:
+- `ComposeRuntime` (Phase 2) ships `docker-compose.community.yml` pointed at the new Harbor, no login required.
+- `SwarmRuntime` keeps `DOCKER_REGISTRY` pointing at the old Harbor for now, but the module resolver (`src/lib/modules.ts`) must learn to route per `license` field so BSL modules pull from the new Harbor while premium modules stay on the old one. Natural seam = `src/lib/registry-login.ts`.
+- Producer GitHub Actions in 5 repos still need to be flipped to push to the new Harbor.
+
+Full details, image lists, exclusions and commands: [`HARBOR-MIGRATION.md`](./HARBOR-MIGRATION.md).
+
 ---
 
 ## 7. Phased plan (cross-referenced with `RUNTIME-STRATEGY.md` §4)
@@ -226,6 +237,20 @@ Compose uses Caddy (from `fm`), Swarm uses Traefik. `ComposeRuntime.deploy()` mu
 **Total**: ≈ 1075 TS lines (new) + `fm` reshuffled into 6 thematic bash files.
 
 **Estimated calendar**: phases 0-2 = 1 sprint (2 weeks). Phases 3-4 = 1 sprint. Phase 5 = 1 week after stabilization.
+
+### Out-of-band work already completed (Harbor)
+
+| Item | Status |
+|---|---|
+| New community Harbor provisioned (`39t88114…`, 7 public projects) | ✅ done |
+| Clone 29 BSL repos / 139 tags via `scripts/ops/clone-harbor-community.sh` | ✅ done |
+| Anonymous pull verified end-to-end | ✅ done |
+| Producer GH Actions flipped to push to new Harbor | ⏳ pending |
+| `industream-cli` dual-registry resolution (per `license`) | ⏳ pending |
+| `docker-compose.community.yml` for Compose users | ⏳ pending (Phase 2) |
+| Decommission `842775dh…/flowmaker.community/*` | ⏳ pending (after 2 releases) |
+
+See [`HARBOR-MIGRATION.md`](./HARBOR-MIGRATION.md) for the full inventory.
 
 ---
 
@@ -255,9 +280,19 @@ An optional compat wrapper `scripts/fm` that forwards to the new layout keeps mu
 ## Appendix A — References
 
 - Architecture rationale: [`RUNTIME-STRATEGY.md`](./RUNTIME-STRATEGY.md)
+- Harbor migration: [`HARBOR-MIGRATION.md`](./HARBOR-MIGRATION.md)
 - CLI entry point: `industream-cli/src/index.ts`
 - Current Swarm deploy: `industream-cli/src/commands/deploy.ts:60-141`
 - Current Swarm stack: `industream-stack/docker-stack.yml`
 - Current deploy script: `industream-stack/scripts/deploy-swarm.sh`
 - Current Compose script (source): `industream-flowmaker/deployment/fm`
 - Compose stack files: `industream-flowmaker/deployment/docker-compose.*.yml`
+- Harbor clone script: `industream-stack/scripts/ops/clone-harbor-community.sh`
+
+### Registry endpoints
+
+| Endpoint | Role | Auth |
+|---|---|---|
+| `39t88114.c1.gra9.container-registry.ovh.net` | Community Harbor — 7 public projects, BSL images | Anonymous pull |
+| `842775dh.c1.gra9.container-registry.ovh.net` | Legacy / premium Harbor — paid add-ons, private projects | Robot account per plan |
+| `842775dh…/flowmaker.community/*` | Legacy community mirror — to be decommissioned | `community-public` robot (transitional) |
