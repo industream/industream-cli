@@ -62,10 +62,19 @@ validates the **Hub JWT via JWKS**, and the upstream IdP is pluggable. Logto is 
 choice (**lighter than Keycloak** — matters at the edge); it sits behind the Hub and is
 swappable without touching consumers.
 
-So `worker-manager` (today on Keycloak: `KEYCLOAK_URL/REALM/CLIENT_ID` in
-`docker-stack.workers.yml`) should move to **Hub JWT/JWKS**, *not* talk to Logto directly.
-**Only open question for David:** does the worker-manager code already support JWKS
-validation, or does it still hard-require a Keycloak-shaped OIDC flow?
+**Code-confirmed:** FlowMaker v2's platform-backend **already validates the Hub JWT via
+JWKS** — `src/auth/jwks-bearer.middleware.ts` (`jose` `createRemoteJWKSet`+`jwtVerify`),
+used by `config-hub-v2`, `launcher` and `logger`. Config:
+- `FM_AUTH_JWKS_URL` = `<hub-backend>/auth/jwks`
+- `FM_AUTH_AUDIENCE` = `industream-hub`
+
+This is the "JWT inside FlowMaker 2.1.0". So **bumping FlowMaker to 2.1.0 + wiring
+`FM_AUTH_*` removes Keycloak for FlowMaker v2** — no code work needed there.
+
+**Residual for David:** the standalone `flowmaker.infra/flowmaker-worker-manager` image
+(stack still sets `KEYCLOAK_URL/REALM/CLIENT_ID`) — is it **legacy, superseded by the v2
+`launcher`/`config-hub-v2`**, or a separate service that still needs the same `FM_AUTH_*`
+wiring? (Its source isn't in the flowmaker repo locally.)
 
 ---
 
@@ -248,11 +257,23 @@ clock-rollback guard (monotonic high-water mark), perpetual. Format:
   (distribution gate, revocable). Calendar `expiry` is primary; countdown only for trial.
   **No machine-binding** (per-site). Prototype in `industream-stack/scripts/license/`.
 
+**Resolved by reading the code**
+- **C (enterprise OIDC contract)** ✅ — `hub-backend-enterprise` is a thin wrapper that reuses
+  `@industream/hub-backend` (`createHubApp({edition:'enterprise-edition'})` + revocation worker).
+  It reads the **same** `IH_OIDC_*`/`IH_REVOCATION_*` env (per `enabling-oauth.md`); roles map
+  from the upstream `roles` claim → add the `roles` scope (default is `openid profile email`).
+- **Q3 (worker/FlowMaker auth)** ✅ — FlowMaker v2 already does JWKS (`FM_AUTH_JWKS_URL`+
+  `FM_AUTH_AUDIENCE`); see §1.3. Only the `flowmaker-worker-manager` image's status is residual.
+- **A (signing key)** — confirmed in-memory (`auth.service.ts:41`/`:85`), shared by CE & EE.
+  Still the one hard blocker → §1.1 / Q1.
+
 **Open**
-- **Q1** — Hub signing-key fix: inject-via-secret (HA) vs LMDB-persist (single-replica)? (§1.1)
+- **Q1** — Hub signing-key fix: inject-via-secret (HA) vs LMDB-persist (single-replica)? (§1.1) — **the blocker.**
 - **Q2** — Logto Postgres: reuse the platform Postgres (`logto` DB) or dedicated container? (§3.1)
-- **Q3** — worker-manager: validate the Hub JWT via JWKS, or talk to Logto? (§1.3)
+- **Q3′** — `flowmaker-worker-manager` image: legacy (replaced by v2 launcher) or needs `FM_AUTH_*`? (§1.3)
 - **Q4** — Runtime caps (`maxTags`/`maxModels`/`maxUsers`): enforce in the apps for v2, or
   ship boolean-only gating first and treat tiers commercially? (§6b)
 - **Q5** — Trial: implement the runtime countdown now, or rely on calendar `expiry` + grace
   for the 90-day trial initially? (§6b)
+- **Q6** — Grafana plugins offline delivery (air-gap): pre-seeded plugins volume vs bundled
+  local zips? (§3.6)
