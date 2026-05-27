@@ -48,15 +48,26 @@ Until this lands, the stack must pin **`hub-backend` to `deploy.replicas: 1`** w
 named volume, and Grafana's `GF_AUTH_JWT_CACHE_TTL` stays short.
 
 ### 1.2 Publish images (no `build:` in Swarm)
-`docker-compose.ee.yml` currently `build:`s the enterprise backend. Swarm cannot build →
-publish through the dispatcher. These v2 images are **absent from the current GHCR
-inventory** (they replace `uifusion/ui`+`uifusion/api`) and must be published; namespace TBD
-(e.g. `…/hub/…`):
-- `hub-backend:<v>` → **GHCR community** (CE shell, replaces UIFusion)
-- `industream-menu:<v>` → **GHCR community** (shell)
-- `hub-backend-enterprise:<v>` → **enterprise `39t88114`** (EE only)
+**Names settled** — the Hub **reuses the UIFusion image names** (`docker-build.sh` builds to
+`uifusion/{ui,api,api-enterprise}`):
+- `uifusion/ui` = the menu/shell · `uifusion/api` = hub-backend (CE) — **both already on GHCR**
+  (`bsl` in `modules.json` → community). Build verified locally (CE backend, exit 0).
+- `uifusion/api-enterprise` = hub-backend-enterprise (EE) — **the only image actually missing.**
 
-Satisfies the repo rule "publish proper versions, never patch in compose".
+**The one surgical change to publish it:** `uifusion/api-enterprise` has **no `modules.json`
+entry**, and `enterpriseVariant` is used **0×** today. `promote-bulk.sh` already supports it
+(`module.enterpriseVariant present → 39t88114…/<enterpriseVariant>:<tag>`). So add to the
+`uifusion-api` module:
+```jsonc
+{ "id": "uifusion-api", "image": "uifusion/api", "license": "bsl",
+  "enterpriseVariant": "uifusion/api-enterprise" }   // ← routes the EE backend to 39t
+```
+Then the existing build (`docker-build.sh` already builds `api-enterprise`) + dispatcher/
+`promote-bulk.sh` publish it to `39t88114` (needs `ENTERPRISE_USER/PASS` — CI/ops creds).
+
+⚠️ `modules.json` lives on the **in-flight `integration/compose-swarm`** branch (its schema is
+being locked there) → this one-field add must land **with the migration / David**, not here.
+`build:` in `docker-compose.ee.yml` then becomes `image: 39t88114…/uifusion/api-enterprise:<v>`.
 
 **Related image deltas from the current inventory (all on `ghcr.io/industream`):**
 - `grafana/grafana-industream` → **drop**, replace with upstream `grafana/grafana-oss`
