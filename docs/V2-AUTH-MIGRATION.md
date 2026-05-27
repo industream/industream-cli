@@ -25,6 +25,37 @@
 
 ---
 
+## Status — where things stand (2026-05-27)
+
+**✅ Landed as PRs (`industream-hub`), verified live in CE *and* EE:**
+- **#3** `fix(auth): stable JWT signing key (IH_JWT_SIGNING_KEY)` → solves the §1.1 blocker.
+  Merge first (base `main`).
+- **#4** `refactor(auth): hand-rolled JWT crypto → jose` → Hub JWT (sign/verify) **and**
+  upstream Logto verification. Stacked on #3 (base `v2/jwt-signing-key`).
+- Tested: CE (BASIC + classic remote JWKS) and EE (real Logto login → Hub JWT) — no verify
+  errors; wire format unchanged (Grafana/FlowMaker accept it via jose).
+
+**🟡 Prototyped, not yet pushed:**
+- `industream-stack` `v2/auth-licensing`: `scripts/license/` — offline Ed25519 license
+  (`gen-keys`/`issue-license`/`license.sh`) + **`ee-gate.sh`** (verify license → `docker login`
+  enterprise → select stack files; the bash port of `stack-filter.ts`).
+- `industream-hub` `v2/auth-licensing`: EE **dev**-compose (`docker-compose.ee.yml`) +
+  `seed-logto.sh` + `.env.ee.example`.
+- `industream-cli` `v2/modules-api-ee`: the `enterpriseVariant: "uifusion/api-ee"` one-liner
+  (cherry-pick onto `integration/compose-swarm`, not a PR to `main`).
+
+**⬜ Not started (this doc §3–§5) — the actual Swarm deploy of the new Hub:**
+- `docker-stack.hub.yml` (CE: `hub-backend` + `menu`) and `docker-stack.ee.yml` (EE overlay: Logto).
+- Grafana `GF_AUTH_GENERIC_OAUTH` → `GF_AUTH_JWT` swap (the `grafana-oss` image switch is
+  already in-flight on the migration branch; the **auth** swap is not).
+- `create-secrets.sh` (`hub_jwt_signing_key`), `deploy-swarm.sh` edition wiring,
+  `modules.json` (add hub/menu/logto, drop keycloak), CLI edition logic.
+
+> Coordinate §3–§5 with the in-flight registry/runtime migration on
+> `integration/compose-swarm` — these land there, not on `main`.
+
+---
+
 ## 1. Blocking prerequisites in `industream-hub` (must land first)
 
 ### 1.1 Persist / inject the JWT signing key  — **BLOCKER**
