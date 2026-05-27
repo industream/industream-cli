@@ -47,14 +47,25 @@ The keypair is generated **in memory at module load**, `kid = sha256(n.e)[:16]`.
 Until this lands, the stack must pin **`hub-backend` to `deploy.replicas: 1`** with a
 named volume, and Grafana's `GF_AUTH_JWT_CACHE_TTL` stays short.
 
-### 1.2 Publish images to Harbor (no `build:` in Swarm)
-`docker-compose.ee.yml` currently uses `build:` for the enterprise backend. Swarm cannot
-build. Publish to Harbor (community + premium mirrors):
-- `industream/hub-backend:<v>` (CE)
-- `industream/hub-backend-enterprise:<v>` (EE)
-- `industream/industream-menu:<v>` (shell)
+### 1.2 Publish images (no `build:` in Swarm)
+`docker-compose.ee.yml` currently `build:`s the enterprise backend. Swarm cannot build →
+publish through the dispatcher. These v2 images are **absent from the current GHCR
+inventory** (they replace `uifusion/ui`+`uifusion/api`) and must be published; namespace TBD
+(e.g. `…/hub/…`):
+- `hub-backend:<v>` → **GHCR community** (CE shell, replaces UIFusion)
+- `industream-menu:<v>` → **GHCR community** (shell)
+- `hub-backend-enterprise:<v>` → **enterprise `39t88114`** (EE only)
 
-This also satisfies the repo rule "publish proper versions, never patch in compose".
+Satisfies the repo rule "publish proper versions, never patch in compose".
+
+**Related image deltas from the current inventory (all on `ghcr.io/industream`):**
+- `grafana/grafana-industream` → **drop**, replace with upstream `grafana/grafana-oss`
+  (outside the industream namespace/dispatcher; see §3.6).
+- `flowmaker.infra/flowmaker-worker-manager` → status TBD (Q3′): legacy vs `FM_AUTH_*` wiring.
+- `timeseries/api 2.3.0` (DataBridge) → publish **stable** (currently `-dev`).
+- FlowMaker core all at **2.1.0** = the JWKS-capable version (the enabler for §1.3).
+- Premium addons (opc-ua / S7 / ironstream …) are the subset routed to `39t88114`, gated by
+  the license-bound robot — *not* in the community inventory.
 
 ### 1.3 Confirm worker auth path
 **Architecture is decided**: the Hub is the IdP **abstraction** — everything downstream
