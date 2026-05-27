@@ -199,7 +199,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           setStatusMessage("Platform files already present, updating...");
           await execa("git", ["-C", resolved, "pull", "--ff-only"]);
         } else {
-          await cloneSwarmRepo(platformDirectory);
+          await cloneSwarmRepo(platformDirectory, (line) => setProgressLine(line));
         }
 
         // Ensure base .env exists (copied from .env.example)
