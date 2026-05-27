@@ -57,9 +57,15 @@ build. Publish to Harbor (community + premium mirrors):
 This also satisfies the repo rule "publish proper versions, never patch in compose".
 
 ### 1.3 Confirm worker auth path
-`worker-manager` (and flow workers) authenticate against Keycloak today
-(`KEYCLOAK_URL/REALM/CLIENT_ID` in `docker-stack.workers.yml`). They must move to
-validating the Hub JWT (JWKS) or Logto directly. **Confirm what the worker supports.**
+**Architecture is decided**: the Hub is the IdP **abstraction** — everything downstream
+validates the **Hub JWT via JWKS**, and the upstream IdP is pluggable. Logto is the current
+choice (**lighter than Keycloak** — matters at the edge); it sits behind the Hub and is
+swappable without touching consumers.
+
+So `worker-manager` (today on Keycloak: `KEYCLOAK_URL/REALM/CLIENT_ID` in
+`docker-stack.workers.yml`) should move to **Hub JWT/JWKS**, *not* talk to Logto directly.
+**Only open question for David:** does the worker-manager code already support JWKS
+validation, or does it still hard-require a Keycloak-shaped OIDC flow?
 
 ---
 
@@ -119,8 +125,22 @@ subdomains (`menu.`, `auth.`, `grafana.`, `datacatalog.` …).
   otherwise) — Traefik already terminates TLS.
 
 ### 3.6 Grafana (`docker-stack.monitoring.yml`)
-Replace the `GF_AUTH_GENERIC_OAUTH_*` block (lines ~48–62) with `GF_AUTH_JWT_*` (the validated
-`grafana-hub-wrapper` config):
+**Image — done in-flight.** The stack already switched to vanilla `grafana/grafana-oss`
+(no more custom `grafana-industream` build) with external plugins added at runtime
+(`GF_INSTALL_PLUGINS=…,volkovlabs-echarts-panel` + `industream-databridge-datasource` via
+`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS`). Cleanup left: `modules.json` still has
+`imagePattern: grafana/grafana-industream` → update to `grafana/grafana-oss`, and retire the
+`grafana-industream` image from CI.
+
+**⚠️ Air-gap gap.** `GF_INSTALL_PLUGINS` **downloads from grafana.com at first boot** — fails
+on offline sites. "Copy the plugins into grafana-oss" must mean **shipping the plugin files
+offline**, not downloading: either a pre-seeded read-only plugins volume mounted at
+`/var/lib/grafana/plugins`, or `GF_INSTALL_PLUGINS` pointing at **local zip URLs** bundled
+with the deployment. Decide the offline delivery mechanism (same air-gap constraint as the
+rest of v2). No custom image needed.
+
+**Auth — the v2 piece.** Replace the `GF_AUTH_GENERIC_OAUTH_*` block (Keycloak, lines ~48–62)
+with `GF_AUTH_JWT_*` (the validated `grafana-hub-wrapper` config):
 `JWK_SET_URL=<hub-backend>/auth/jwks`, `EXPECT_CLAIMS={"iss":"industream-hub-backend","aud":"industream-hub"}`,
 `USERNAME_CLAIM=username`, `DISABLE_SIGNOUT_MENU=true`, `USERS_DISABLE_GRAVATAR=true`,
 short `CACHE_TTL` until §1.1. Works for CE and EE unchanged.
