@@ -1,0 +1,342 @@
+# V2 Auth Migration — Keycloak/UIFusion → Logto/Hub
+
+> **Audience**: Industream platform team (Cyril + colleague / David)
+> **Status**: analysis complete, decisions locked, pending sign-off before implementation
+> **Scope**: `industream-hub`, `industream-stack`, `industream-cli`
+> **Companion docs**: `INTEGRATION-PLAN.md` (Swarm/Compose runtime split), `RUNTIME-STRATEGY.md`
+> **Date**: 2026-05-27
+
+## TL;DR
+
+- **Breaking change, gated as v2.** We replace the v1 identity layer (Keycloak IdP +
+  UIFusion shell) with the Hub shell (`industream-menu` + `hub-backend`) and Logto.
+- **The Hub backend always issues its own JWT** (`iss=industream-hub-backend`,
+  `aud=industream-hub`). Only the identity *source* differs by edition:
+  - **CE (community)** — `IH_AUTH_METHOD=BASIC`: a single env-defined admin, offline,
+    no external IdP. Confirmed in `hub-backend/src/config/env.ts` (`IH_USERNAME`/`IH_PASSWORD`).
+  - **EE (enterprise)** — `IH_AUTH_METHOD=OAUTH`: Logto OIDC upstream, role propagation.
+- **Downstream apps are edition-agnostic**: they validate the Hub JWT via JWKS, so
+  Grafana/DataCatalog/workers are configured **once** regardless of edition.
+- **Ingress: Traefik everywhere** (Swarm *and* Compose). Decided to avoid wiring the
+  Hub same-site/JWKS/origin requirements twice in two label dialects.
+- **One hard code prerequisite in `industream-hub`** (see §1) must land first: the Hub
+  JWT signing key is currently generated in-memory at process start → not stable across
+  restarts or replicas.
+
+---
+
+## Status — where things stand (2026-05-27)
+
+**✅ Landed as PRs (`industream-hub`), verified live in CE *and* EE:**
+- **#3** `fix(auth): stable JWT signing key (IH_JWT_SIGNING_KEY)` → solves the §1.1 blocker.
+  Merge first (base `main`).
+- **#4** `refactor(auth): hand-rolled JWT crypto → jose` → Hub JWT (sign/verify) **and**
+  upstream Logto verification. Stacked on #3 (base `v2/jwt-signing-key`).
+- Tested: CE (BASIC + classic remote JWKS) and EE (real Logto login → Hub JWT) — no verify
+  errors; wire format unchanged (Grafana/FlowMaker accept it via jose).
+
+**🟡 Prototyped, not yet pushed:**
+- `industream-stack` `v2/auth-licensing`: `scripts/license/` — offline Ed25519 license
+  (`gen-keys`/`issue-license`/`license.sh`) + **`ee-gate.sh`** (verify license → `docker login`
+  enterprise → select stack files; the bash port of `stack-filter.ts`).
+- `industream-hub` `v2/auth-licensing`: EE **dev**-compose (`docker-compose.ee.yml`) +
+  `seed-logto.sh` + `.env.ee.example`.
+- `industream-cli` `v2/modules-api-ee`: the `enterpriseVariant: "uifusion/api-ee"` one-liner
+  (cherry-pick onto `integration/compose-swarm`, not a PR to `main`).
+
+**⬜ Not started (this doc §3–§5) — the actual Swarm deploy of the new Hub:**
+- `docker-stack.hub.yml` (CE: `hub-backend` + `menu`) and `docker-stack.ee.yml` (EE overlay: Logto).
+- Grafana `GF_AUTH_GENERIC_OAUTH` → `GF_AUTH_JWT` swap (the `grafana-oss` image switch is
+  already in-flight on the migration branch; the **auth** swap is not).
+- `create-secrets.sh` (`hub_jwt_signing_key`), `deploy-swarm.sh` edition wiring,
+  `modules.json` (add hub/menu/logto, drop keycloak), CLI edition logic.
+
+> Coordinate §3–§5 with the in-flight registry/runtime migration on
+> `integration/compose-swarm` — these land there, not on `main`.
+
+---
+
+## 1. Blocking prerequisites in `industream-hub` (must land first)
+
+### 1.1 Persist / inject the JWT signing key  — **BLOCKER**
+`packages/industream-hub-backend/src/modules/auth/auth.service.ts:41`:
+```ts
+const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+```
+The keypair is generated **in memory at module load**, `kid = sha256(n.e)[:16]`. Consequences:
+- **Restart** → new `kid` → every live JWT is invalidated, JWKS serves a new key
+  (this is the "no keys found / 60-min stale" symptom seen in local testing).
+- **Multi-replica** → each replica signs with a different key → a JWT minted by replica A
+  fails verification against replica B's JWKS.
+
+**Fix (pick one, ranked):**
+1. **Inject via secret** `IH_JWT_SIGNING_KEY` (RSA private key PEM). All replicas share it;
+   `kid` derived deterministically. Required for HA. *(preferred)*
+2. **Persist in LMDB** (load-or-generate in `HUB_DATA_PATH`). Survives restart but each
+   replica still has its own → only safe single-replica.
+
+Until this lands, the stack must pin **`hub-backend` to `deploy.replicas: 1`** with a
+named volume, and Grafana's `GF_AUTH_JWT_CACHE_TTL` stays short.
+
+### 1.2 Publish images (no `build:` in Swarm)
+
+**Image naming convention (locked):** base name = community; the enterprise build is
+`<name>-ee`, **only when an EE variant exists**; services without an EE build keep just the
+base name. Consistent with the `.ee.*` / `ee`-subcommand convention. In `modules.json` this is
+exactly the optional `enterpriseVariant` field (present ⟺ a `-ee` image exists).
+
+**Names settled** — the Hub **reuses the UIFusion image names** (`docker-build.sh` builds to
+`uifusion/{ui, api, api-ee}` — rename the current `api-enterprise` target → `api-ee`):
+- `uifusion/ui` = the menu/shell · `uifusion/api` = hub-backend (CE) — **both already on GHCR**
+  (`bsl` in `modules.json` → community). Build verified locally (CE backend, exit 0).
+- `uifusion/api-ee` = hub-backend-enterprise (EE) — **the only image actually missing.**
+
+**The one surgical change to publish it:** `uifusion/api-ee` has **no `modules.json` entry**,
+and `enterpriseVariant` is used **0×** today. `promote-bulk.sh` already supports it
+(`module.enterpriseVariant present → 39t88114…/<enterpriseVariant>:<tag>`). So add to the
+`uifusion-api` module:
+```jsonc
+{ "id": "uifusion-api", "image": "uifusion/api", "license": "bsl",
+  "enterpriseVariant": "uifusion/api-ee" }   // ← routes the EE backend to 39t
+```
+Then the existing build (`docker-build.sh`, target renamed to `api-ee`) + dispatcher/
+`promote-bulk.sh` publish it to `39t88114` (needs `ENTERPRISE_USER/PASS` — CI/ops creds).
+
+**`ee`-gate image rule:** `image = base + (hasEeVariant(service) && edition==enterprise ? "-ee" : "")`.
+Most services have no EE variant → always the base name.
+
+⚠️ `modules.json` + `docker-build.sh` live outside this branch (the migration's
+`integration/compose-swarm` / David's hub repo). The `-ee` rename + `enterpriseVariant` add
+must land **there**, not here. `build:` in `docker-compose.ee.yml` then becomes
+`image: 39t88114…/uifusion/api-ee:<v>`.
+
+**Related image deltas from the current inventory (all on `ghcr.io/industream`):**
+- `grafana/grafana-industream` → **drop**, replace with upstream `grafana/grafana-oss`
+  (outside the industream namespace/dispatcher; see §3.6).
+- `flowmaker.infra/flowmaker-worker-manager` → status TBD (Q3′): legacy vs `FM_AUTH_*` wiring.
+- `timeseries/api 2.3.0` (DataBridge) → publish **stable** (currently `-dev`).
+- FlowMaker core all at **2.1.0** = the JWKS-capable version (the enabler for §1.3).
+- Premium addons (opc-ua / S7 / ironstream …) are the subset routed to `39t88114`, gated by
+  the license-bound robot — *not* in the community inventory.
+
+### 1.3 Confirm worker auth path
+**Architecture is decided**: the Hub is the IdP **abstraction** — everything downstream
+validates the **Hub JWT via JWKS**, and the upstream IdP is pluggable. Logto is the current
+choice (**lighter than Keycloak** — matters at the edge); it sits behind the Hub and is
+swappable without touching consumers.
+
+**Code-confirmed:** FlowMaker v2's platform-backend **already validates the Hub JWT via
+JWKS** — `src/auth/jwks-bearer.middleware.ts` (`jose` `createRemoteJWKSet`+`jwtVerify`),
+used by `config-hub-v2`, `launcher` and `logger`. Config:
+- `FM_AUTH_JWKS_URL` = `<hub-backend>/auth/jwks`
+- `FM_AUTH_AUDIENCE` = `industream-hub`
+
+This is the "JWT inside FlowMaker 2.1.0". So **bumping FlowMaker to 2.1.0 + wiring
+`FM_AUTH_*` removes Keycloak for FlowMaker v2** — no code work needed there.
+
+**Residual for David:** the standalone `flowmaker.infra/flowmaker-worker-manager` image
+(stack still sets `KEYCLOAK_URL/REALM/CLIENT_ID`) — is it **legacy, superseded by the v2
+`launcher`/`config-hub-v2`**, or a separate service that still needs the same `FM_AUTH_*`
+wiring? (Its source isn't in the flowmaker repo locally.)
+
+---
+
+## 2. Current → Target
+
+| Concern        | v1 (today)                                  | v2 (target)                                              |
+|----------------|---------------------------------------------|----------------------------------------------------------|
+| IdP            | Keycloak 26.1.0 (realm import)              | EE: Logto · CE: none (Hub BASIC admin)                   |
+| Shell          | UIFusion (`uifusion/ui` + `uifusion/api`)   | Hub (`industream-menu` + `hub-backend`)                  |
+| Token apps see | Keycloak OIDC token (generic OAuth)         | Hub JWT (`iss=industream-hub-backend`) via JWKS          |
+| Ingress        | Traefik (Swarm) / Caddy (Compose)           | **Traefik (both)**                                       |
+| Grafana auth   | `GF_AUTH_GENERIC_OAUTH` → Keycloak          | `GF_AUTH_JWT` → Hub JWKS                                 |
+| Secrets        | `keycloak_admin/db_password`                | `hub_jwt_signing_key`, `hub_admin_password` (CE), `logto_db_password`, `logto_cookie_key` (EE) |
+| Editions       | Keygen entitlements + `stack-filter.ts`     | + explicit `community`/`enterprise` edition → stack-file selection |
+
+---
+
+## 3. `industream-stack` changes
+
+### 3.1 New stack files
+- **`docker-stack.hub.yml`** (CE base, always deployed):
+  - `industream-menu` — shell, `AUTH_METHOD=BASIC`, Traefik labels (the Hub host).
+  - `hub-backend` — image (not build), `IH_AUTH_METHOD=BASIC`, `IH_ISSUER=industream-hub-backend`,
+    `IH_USERNAME`/`IH_PASSWORD` (the latter from `hub_admin_password` secret via `_FILE`-style
+    env wiring), `HUB_DATA_PATH` on a named volume, `IH_JWT_SIGNING_KEY` from secret (post §1.1),
+    `deploy.replicas: 1` until §1.1 lands.
+- **`docker-stack.ee.yml`** (EE overlay, enterprise edition only):
+  - `logto` + Logto Postgres (reuse platform Postgres with a `logto` DB — drop the separate
+    container; one less stateful service).
+  - Flip `hub-backend`/`industream-menu` to `OAUTH` + `IH_OIDC_*` / `OIDC_*` (Swarm transposition
+    of `industream-hub/.../docker-compose.ee.yml`: `_FILE` secrets, Traefik labels, replicas).
+
+### 3.2 Removals
+- `keycloak` service from `docker-stack.yml`; `keycloak-realms/`;
+  `scripts/generate/generate-keycloak-realm.sh`; `scripts/utils/rotate-keycloak-password.sh`;
+  `config/keycloak-entrypoint.sh`.
+- Postgres `POSTGRES_MULTIPLE_DATABASES`: drop `keycloak:…`, add `logto:logto:…` (EE).
+
+### 3.3 `scripts/deploy-swarm.sh`
+`STACK_FILES` array (currently ~line 516): add `docker-stack.hub.yml` always; append
+`docker-stack.ee.yml` when `EDITION=enterprise` (mirror the existing `COMMUNITY_MODE` gate
+for premium workers).
+
+### 3.4 `scripts/setup/create-secrets.sh`
+`BASE_SECRETS`: remove `keycloak_admin_password`, `keycloak_db_password`; add
+`hub_jwt_signing_key`, `hub_admin_password` (CE), `logto_db_password`, `logto_cookie_key` (EE).
+CLI `SwarmSecrets`/`ComposeSecrets` follow automatically (they delegate to this script).
+
+### 3.5 Traefik routing (the hard part)
+The Hub needs the shell + embedded apps to be **same-site** (SharedWorker bridge, cookies,
+`INDUSTREAM_HUB_ORIGIN`). v1 routes everything on one Host with `PathPrefix`; v2 wants sibling
+subdomains (`menu.`, `auth.`, `grafana.`, `datacatalog.` …).
+- Regenerate SANs (`scripts/generate/generate-sans.sh`) for the new subdomains.
+- Add Traefik labels per Hub service; set `INDUSTREAM_HUB_ORIGIN` to the **menu** origin
+  (serves `industream-login.js` + `/shared-worker.html`), not the backend.
+- EE: Logto `ENDPOINT` must be HTTPS (browser token-exchange XHR is mixed-content-blocked
+  otherwise) — Traefik already terminates TLS.
+
+### 3.6 Grafana (`docker-stack.monitoring.yml`)
+**Image — done in-flight.** The stack already switched to vanilla `grafana/grafana-oss`
+(no more custom `grafana-industream` build) with external plugins added at runtime
+(`GF_INSTALL_PLUGINS=…,volkovlabs-echarts-panel` + `industream-databridge-datasource` via
+`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS`). Cleanup left: `modules.json` still has
+`imagePattern: grafana/grafana-industream` → update to `grafana/grafana-oss`, and retire the
+`grafana-industream` image from CI.
+
+**⚠️ Air-gap gap.** `GF_INSTALL_PLUGINS` **downloads from grafana.com at first boot** — fails
+on offline sites. "Copy the plugins into grafana-oss" must mean **shipping the plugin files
+offline**, not downloading: either a pre-seeded read-only plugins volume mounted at
+`/var/lib/grafana/plugins`, or `GF_INSTALL_PLUGINS` pointing at **local zip URLs** bundled
+with the deployment. Decide the offline delivery mechanism (same air-gap constraint as the
+rest of v2). No custom image needed.
+
+**Auth — the v2 piece.** Replace the `GF_AUTH_GENERIC_OAUTH_*` block (Keycloak, lines ~48–62)
+with `GF_AUTH_JWT_*` (the validated `grafana-hub-wrapper` config):
+`JWK_SET_URL=<hub-backend>/auth/jwks`, `EXPECT_CLAIMS={"iss":"industream-hub-backend","aud":"industream-hub"}`,
+`USERNAME_CLAIM=username`, `DISABLE_SIGNOUT_MENU=true`, `USERS_DISABLE_GRAVATAR=true`,
+short `CACHE_TTL` until §1.1. Works for CE and EE unchanged.
+
+---
+
+## 4. `industream-cli` changes
+
+- **`modules.json`**: remove `keycloak`; replace `uifusion`/`uifusion-api` with
+  `industream-menu` + `hub-backend`; add `logto` gated by entitlement (`PRODUCT_SSO` or
+  `edition=enterprise`) so CE never pulls it (`stack-filter.ts` already excludes by entitlement).
+- **Edition notion**: derive `community`/`enterprise` from the Keygen plan; pass to
+  `deploy-swarm.sh` (see §3.3). `stack-filter.ts` keeps Logto out of CE via the entitlement gate.
+- **Compose runtime**: same overlay model via `fm-*` scripts; Traefik now used here too
+  (drop the Caddy-only path for prod parity; Caddy may remain a local-dev convenience only).
+
+---
+
+## 5. Seeding (replaces Keycloak realm import)
+
+- **EE**: adapt `industream-hub/.../seed-logto.sh` for Swarm (`--runtime swarm|compose`;
+  resolve the Logto Postgres via `docker service ps` / one-shot). Wire into
+  `scripts/setup/first-deployment.sh` after Logto is healthy, alongside `seed-menu-apps.sh`
+  (Hub app registration) and `seed-confighub.sh`. Seeds SPA app + roles + admin (temp password).
+- **CE**: no Logto. The admin is the BASIC env user — set `IH_USERNAME` +
+  `IH_PASSWORD` (from `hub_admin_password` secret, generated by `create-secrets.sh`).
+  No LMDB user seed needed.
+
+---
+
+## 6. Phased plan
+
+1. **`industream-hub`**: signing-key fix (§1.1) + publish images (§1.2) + confirm worker auth (§1.3).
+2. **`industream-stack`**: `docker-stack.hub.yml` (CE) + Grafana JWT swap + secrets + Traefik
+   routing for the Hub shell. Deploy CE end-to-end on the test VM.
+3. **`industream-stack`**: `docker-stack.ee.yml` (Logto) + EE Traefik routing + Logto seed.
+   Deploy EE end-to-end.
+4. **`industream-cli`**: `modules.json` + edition selection + `deploy-swarm.sh` wiring.
+5. **Cleanup**: remove Keycloak artifacts; bump major version; update docs.
+
+> No in-place user migration from Keycloak (different IdP). Provide the admin seed and
+> document re-provisioning for v1→v2 upgrades.
+
+---
+
+## 6b. Licensing model (v2) — two gates, offline-first
+
+Driven by the commercial model on industream.com/pricing: **CE** = free OSS
+(BSL/Apache, no license); **paid** = **per-site** subscription (OPEX monthly/annual)
+or perpetual **CAPEX + 15%/yr maintenance**; **90-day free trial**; three modules
+(Data&Asset Catalog — tiered by *tags*; AI Studio — by *models*; MCP — by *users*)
+plus add-ons (Backup, HA, DB connectors, process packages).
+
+### Two complementary gates
+| Gate | Where enforced | Revocable | Controls |
+|------|----------------|-----------|----------|
+| **Distribution** — per-client Harbor robot creds | Harbor (Industream-side, server) | ✅ rotate the robot account | Whether the client can **pull** premium/EE images at all. Leak → revoke that one client. |
+| **Entitlement** — Ed25519-signed `.lic` file | deploy `ee`-gate, **offline** | ⚠️ via `expiry`/`maintenance_expiry` | What **runs**, until **when**, which **modules/limits**. |
+
+`scripts/create-customer.ts` **already implements this** (Harbor robot + license +
+`harborCredentials`/`tagsLimit` in license metadata). v2 keeps the Harbor robot
+provisioning and **swaps the Keygen license for the offline signed file** — the strong,
+revocable gate stays; the entitlement gate goes offline (air-gap-friendly).
+
+### Why offline-signed, not Keygen-online or a local license server
+- Current `keygen.ts` only does **online validate + a 30-day editable JSON cache** (no
+  offline crypto) → needs internet every 30 days. Bad for air-gap.
+- A **self-hosted license server in the client's stack** (e.g. SW-CD) "solves" connectivity
+  but the **client owns the server** → its signing key is on their disk → forgeable; plus a
+  stateful keepalive service the platform depends on. Worse tamper story, more ops.
+- **Signed file**: the **private key never leaves Industream** → clients can't forge; **zero
+  services, zero internet, no machine-binding** (per-*site*, so server migration never breaks).
+
+### Prototype
+`industream-stack/scripts/license/` (`gen-keys.sh`, `issue-license.sh`, `license.sh` + README).
+Pure `openssl` (Ed25519) + `jq`. Tested: tamper→fail, wrong-key→fail, expiry+grace,
+clock-rollback guard (monotonic high-water mark), perpetual. Format:
+`base64(payload).base64(ed25519_sig)` (JWT-style signing over the encoded segment).
+
+### Two enforcement layers
+1. **Deploy-time (this prototype, boolean)** — modules on/off + add-ons → selects
+   `docker-stack.*.yml` + `docker login` with the embedded Harbor creds. **stack-filter.ts**
+   already filters by `entitlements: string[]`; the signed file just becomes that source.
+2. **Runtime (apps, fast-follow)** — quantitative caps (`maxTags`/`maxModels`/`maxUsers`):
+   the CLI can't count tags; DataBridge/AI-Studio/MCP must read the signed license and enforce.
+
+### Expiry semantics
+- **subscription (OPEX)** → `expiry` = billing-period end (calendar is primary).
+- **perpetual (CAPEX)** → no run `expiry`; `maintenance_expiry` gates upgrades only.
+- **trial** → `expiry = issued + 90d`, **plus a runtime countdown** (monotonic consumed-time
+  budget) to blunt clock-rollback trial abuse. Countdown is documented, not yet prototyped.
+- All: **grace window + warn, never brick** a running industrial plant.
+
+## 7. Decisions locked & open questions
+
+**Locked**
+- **Ingress: Traefik everywhere** (Swarm + Compose) — avoid wiring the Hub same-site
+  requirements twice. Caddy at most a local-dev convenience.
+- **Deployment tool: bash-first.** The TS CLI mostly wraps bash; license validation is just
+  `curl`+`jq`+cache (no offline crypto today) → no irreducible TS need. Consolidate to bash;
+  reconsider Ink unless an interactive wizard is wanted.
+- **CE/EE split: one common base + an `ee` overlay/subcommand**, EE-only bits as `*.ee.*`
+  files (consistent with `industream-hub/.../docker-compose.ee.yml`). No duplicated scripts.
+- **Licensing: offline Ed25519 signed file** (entitlement gate) + **per-client Harbor robot**
+  (distribution gate, revocable). Calendar `expiry` is primary; countdown only for trial.
+  **No machine-binding** (per-site). Prototype in `industream-stack/scripts/license/`.
+
+**Resolved by reading the code**
+- **C (enterprise OIDC contract)** ✅ — `hub-backend-enterprise` is a thin wrapper that reuses
+  `@industream/hub-backend` (`createHubApp({edition:'enterprise-edition'})` + revocation worker).
+  It reads the **same** `IH_OIDC_*`/`IH_REVOCATION_*` env (per `enabling-oauth.md`); roles map
+  from the upstream `roles` claim → add the `roles` scope (default is `openid profile email`).
+- **Q3 (worker/FlowMaker auth)** ✅ — FlowMaker v2 already does JWKS (`FM_AUTH_JWKS_URL`+
+  `FM_AUTH_AUDIENCE`); see §1.3. Only the `flowmaker-worker-manager` image's status is residual.
+- **A (signing key)** — confirmed in-memory (`auth.service.ts:41`/`:85`), shared by CE & EE.
+  Still the one hard blocker → §1.1 / Q1.
+
+**Open**
+- **Q1** — Hub signing-key fix: inject-via-secret (HA) vs LMDB-persist (single-replica)? (§1.1) — **the blocker.**
+- **Q2** — Logto Postgres: reuse the platform Postgres (`logto` DB) or dedicated container? (§3.1)
+- **Q3′** — `flowmaker-worker-manager` image: legacy (replaced by v2 launcher) or needs `FM_AUTH_*`? (§1.3)
+- **Q4** — Runtime caps (`maxTags`/`maxModels`/`maxUsers`): enforce in the apps for v2, or
+  ship boolean-only gating first and treat tiers commercially? (§6b)
+- **Q5** — Trial: implement the runtime countdown now, or rely on calendar `expiry` + grace
+  for the 90-day trial initially? (§6b)
+- **Q6** — Grafana plugins offline delivery (air-gap): pre-seeded plugins volume vs bundled
+  local zips? (§3.6)
