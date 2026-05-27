@@ -48,26 +48,36 @@ Until this lands, the stack must pin **`hub-backend` to `deploy.replicas: 1`** w
 named volume, and Grafana's `GF_AUTH_JWT_CACHE_TTL` stays short.
 
 ### 1.2 Publish images (no `build:` in Swarm)
+
+**Image naming convention (locked):** base name = community; the enterprise build is
+`<name>-ee`, **only when an EE variant exists**; services without an EE build keep just the
+base name. Consistent with the `.ee.*` / `ee`-subcommand convention. In `modules.json` this is
+exactly the optional `enterpriseVariant` field (present ⟺ a `-ee` image exists).
+
 **Names settled** — the Hub **reuses the UIFusion image names** (`docker-build.sh` builds to
-`uifusion/{ui,api,api-enterprise}`):
+`uifusion/{ui, api, api-ee}` — rename the current `api-enterprise` target → `api-ee`):
 - `uifusion/ui` = the menu/shell · `uifusion/api` = hub-backend (CE) — **both already on GHCR**
   (`bsl` in `modules.json` → community). Build verified locally (CE backend, exit 0).
-- `uifusion/api-enterprise` = hub-backend-enterprise (EE) — **the only image actually missing.**
+- `uifusion/api-ee` = hub-backend-enterprise (EE) — **the only image actually missing.**
 
-**The one surgical change to publish it:** `uifusion/api-enterprise` has **no `modules.json`
-entry**, and `enterpriseVariant` is used **0×** today. `promote-bulk.sh` already supports it
+**The one surgical change to publish it:** `uifusion/api-ee` has **no `modules.json` entry**,
+and `enterpriseVariant` is used **0×** today. `promote-bulk.sh` already supports it
 (`module.enterpriseVariant present → 39t88114…/<enterpriseVariant>:<tag>`). So add to the
 `uifusion-api` module:
 ```jsonc
 { "id": "uifusion-api", "image": "uifusion/api", "license": "bsl",
-  "enterpriseVariant": "uifusion/api-enterprise" }   // ← routes the EE backend to 39t
+  "enterpriseVariant": "uifusion/api-ee" }   // ← routes the EE backend to 39t
 ```
-Then the existing build (`docker-build.sh` already builds `api-enterprise`) + dispatcher/
+Then the existing build (`docker-build.sh`, target renamed to `api-ee`) + dispatcher/
 `promote-bulk.sh` publish it to `39t88114` (needs `ENTERPRISE_USER/PASS` — CI/ops creds).
 
-⚠️ `modules.json` lives on the **in-flight `integration/compose-swarm`** branch (its schema is
-being locked there) → this one-field add must land **with the migration / David**, not here.
-`build:` in `docker-compose.ee.yml` then becomes `image: 39t88114…/uifusion/api-enterprise:<v>`.
+**`ee`-gate image rule:** `image = base + (hasEeVariant(service) && edition==enterprise ? "-ee" : "")`.
+Most services have no EE variant → always the base name.
+
+⚠️ `modules.json` + `docker-build.sh` live outside this branch (the migration's
+`integration/compose-swarm` / David's hub repo). The `-ee` rename + `enterpriseVariant` add
+must land **there**, not here. `build:` in `docker-compose.ee.yml` then becomes
+`image: 39t88114…/uifusion/api-ee:<v>`.
 
 **Related image deltas from the current inventory (all on `ghcr.io/industream`):**
 - `grafana/grafana-industream` → **drop**, replace with upstream `grafana/grafana-oss`
