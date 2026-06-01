@@ -8,6 +8,7 @@ import { saveConfig } from "../lib/config.js";
 import { isDockerAvailable, isSwarmActive } from "../lib/docker.js";
 import {
   cloneSwarmRepo,
+  ensureComposeTree,
   isPlatformInstalled,
   resolvePlatformDir,
   updateEnvValue,
@@ -208,6 +209,14 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           await execa("git", ["-C", resolved, "pull", "--ff-only"]);
         } else {
           await cloneSwarmRepo(platformDirectory, (line) => setProgressLine(line));
+        }
+
+        // Compose runtime also needs the parallel deployment tree
+        // (industream-flowmaker) — the swarm clone doesn't include it.
+        if (runtimeName === "compose") {
+          setStatusMessage("Downloading compose deployment tree...");
+          setProgressLine("");
+          await ensureComposeTree((line) => setProgressLine(line));
         }
 
         // Ensure base .env exists (copied from .env.example)

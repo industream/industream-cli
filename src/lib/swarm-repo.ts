@@ -6,6 +6,13 @@ import { homedir } from "node:os";
 
 const REPO_URL = "https://github.com/industream/industream-stack.git";
 
+// The compose runtime needs the parallel deployment tree (docker-compose.*.yml
+// + instances) from industream-flowmaker. The `fm` scripts in industream-stack
+// resolve COMPOSE_ROOT to `<platformDir>/../industream-flowmaker/deployment`, so
+// the tree must be cloned as a sibling of the platform dir.
+const COMPOSE_REPO_URL = "https://github.com/industream/industream-flowmaker.git";
+export const COMPOSE_TREE_DIR = "~/industream-flowmaker";
+
 export function resolvePlatformDir(path: string): string {
   return path.replace(/^~/, homedir());
 }
@@ -33,22 +40,21 @@ export async function isPlatformInstalled(platformDir: string): Promise<boolean>
   }
 }
 
-export async function cloneSwarmRepo(
-  platformDir: string,
+// Shared git clone with progress streaming. --progress forces git to emit
+// "Receiving objects: XX%..." even when stderr isn't a TTY; we pipe it so the
+// Ink wizard can show it (otherwise Ink's alt-screen swallows it).
+async function gitClone(
+  url: string,
+  resolved: string,
   onProgress?: (line: string) => void,
 ): Promise<void> {
-  const resolved = resolvePlatformDir(platformDir);
-  // --progress forces git to emit "Receiving objects: XX%..." even when
-  // stderr isn't a TTY. We pipe it ourselves so we can stream it to the
-  // Ink wizard via onProgress (otherwise Ink's alt-screen swallows it).
-  const child = execa("git", ["clone", "--progress", REPO_URL, resolved], {
+  const child = execa("git", ["clone", "--progress", url, resolved], {
     stderr: "pipe",
   });
   if (onProgress && child.stderr) {
     let buffer = "";
     child.stderr.on("data", (chunk: Buffer) => {
       // git emits progress with \r between updates and \n on completion.
-      // Normalize to \n, then push the last non-empty line.
       buffer = (buffer + chunk.toString("utf8")).replace(/\r/g, "\n");
       const parts = buffer.split("\n");
       buffer = parts.pop() ?? "";
@@ -59,6 +65,37 @@ export async function cloneSwarmRepo(
     });
   }
   await child;
+}
+
+export async function cloneSwarmRepo(
+  platformDir: string,
+  onProgress?: (line: string) => void,
+): Promise<void> {
+  await gitClone(REPO_URL, resolvePlatformDir(platformDir), onProgress);
+}
+
+/** True when the compose deployment tree (industream-flowmaker) is present. */
+export async function isComposeTreeInstalled(): Promise<boolean> {
+  try {
+    await access(join(resolvePlatformDir(COMPOSE_TREE_DIR), ".git"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Clone (or pull) the compose deployment tree as a sibling of the platform. */
+export async function ensureComposeTree(
+  onProgress?: (line: string) => void,
+): Promise<void> {
+  const resolved = resolvePlatformDir(COMPOSE_TREE_DIR);
+  if (await isComposeTreeInstalled()) {
+    await execa("git", ["-C", resolved, "pull", "--ff-only"]).catch(() => {
+      // best-effort update; a clone already exists
+    });
+    return;
+  }
+  await gitClone(COMPOSE_REPO_URL, resolved, onProgress);
 }
 
 export async function pullSwarmRepo(platformDir: string): Promise<string> {
