@@ -184,10 +184,16 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
             "Docker is not installed. Install Docker first: https://docs.docker.com/engine/install/",
           );
         }
-        setStatusMessage("Checking Docker Swarm...");
-        if (!(await isSwarmActive())) {
-          setStatusMessage("Initializing Docker Swarm...");
-          await execa("/usr/bin/docker", ["swarm", "init"]);
+        // Only the Swarm runtime needs a Swarm. Compose runs on plain Docker,
+        // so don't initialize Swarm when it isn't required.
+        if (runtimeName === "swarm") {
+          setStatusMessage("Checking Docker Swarm...");
+          if (!(await isSwarmActive())) {
+            setStatusMessage("Initializing Docker Swarm...");
+            await execa("/usr/bin/docker", ["swarm", "init"]);
+          }
+        } else {
+          setStatusMessage("Compose runtime — skipping Docker Swarm");
         }
 
         // Step 2: Clone repo
