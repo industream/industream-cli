@@ -340,6 +340,24 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         setProgressLine("");
         await ensureRegistryLogin(dockerRegistry, plan);
 
+        // Compose runtime: no Swarm, no Traefik. Bring up the shared Caddy
+        // reverse proxy; per-instance deploys happen via `industream deploy`.
+        if (runtimeName === "compose") {
+          setStatusMessage("Starting Caddy reverse proxy...");
+          setProgressLine("");
+          await runScript(
+            join(resolved, "scripts/compose/fm-caddy.sh"),
+            ["rebuild"],
+            resolved,
+            (line) => setProgressLine(line),
+          ).catch(() => {
+            // non-fatal: Caddy can also be (re)started on first deploy
+          });
+          setModulesSummary("Run 'industream deploy --env <instance>' to bring up an instance.");
+          setStep("done");
+          return;
+        }
+
         setStatusMessage("Deploying Traefik...");
         setProgressLine("");
         await runScript(
