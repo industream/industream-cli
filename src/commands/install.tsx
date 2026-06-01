@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { render, Text, Box, useApp, useInput } from "ink";
-import { BoltAnimated } from "../components/BoltAnimated.js";
 import { BoltBuilder } from "../components/BoltBuilder.js";
 import { Banner } from "../components/Banner.js";
 import { ModuleSelector } from "../components/ModuleSelector.js";
@@ -33,40 +32,43 @@ type Step =
   | "done"
   | "error";
 
-const BOLT_MESSAGES: Record<Step, string[]> = {
-  prerequisites: [
-    "Let me check your system...",
-    "Hmm, let me see what we're working with...",
-    "Just making sure everything's in order...",
-  ],
-  clone: [
-    "Downloading the good stuff...",
-    "Grabbing the latest recipes from HQ...",
-    "Almost there, just fetching a few things...",
-  ],
-  modules: [
-    "Checking your module lineup...",
-    "Let's see what you've got...",
-  ],
-  setup: [
-    "Setting everything up, hang tight!",
-    "Wiring all the things together...",
-    "This is the fun part!",
-    "Pulling images... this might take a minute.",
-    "Still working... good things take time!",
-    "Making your factory smarter, one container at a time...",
-    "If I had fingers, I'd be crossing them...",
-    "Almost there... I think.",
-    "Did you know? Industream can monitor a blast furnace!",
-    "Loading industrial awesomeness...",
-  ],
-  done: [
-    "Welcome to Industream! You're all set!",
-  ],
-  error: [
-    "Oops, something went sideways...",
-  ],
-};
+// Structured install phases (replaces the animated bolt with a clear checklist).
+const INSTALL_STEPS: { id: Step; label: string }[] = [
+  { id: "prerequisites", label: "Check prerequisites" },
+  { id: "clone", label: "Download platform files" },
+  { id: "modules", label: "Resolve modules" },
+  { id: "setup", label: "Configure & deploy" },
+];
+
+function InstallSteps({
+  current,
+  isError,
+}: {
+  current: Step;
+  isError: boolean;
+}): React.ReactElement {
+  const currentIndex = INSTALL_STEPS.findIndex((s) => s.id === current);
+  return (
+    <Box flexDirection="column">
+      {INSTALL_STEPS.map((s, i) => {
+        let icon = "○";
+        let color = "gray";
+        if (current === "done" || (currentIndex >= 0 && i < currentIndex)) {
+          icon = "✓";
+          color = "green";
+        } else if (i === currentIndex) {
+          icon = isError ? "✗" : "⚙";
+          color = isError ? "red" : "blueBright";
+        }
+        return (
+          <Text key={s.id} color={color}>
+            {icon} {s.label}
+          </Text>
+        );
+      })}
+    </Box>
+  );
+}
 
 // Run a script and stream last meaningful line to a callback
 async function runScript(
@@ -462,7 +464,6 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
 
   const isDone = step === "done";
   const isError = step === "error";
-  const isDancing = !isError;
 
   // Show the building intro before the install starts
   if (!introDone) {
@@ -498,7 +499,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
   return (
     <Box flexDirection="column">
       <Banner />
-      <BoltAnimated dancing={isDancing} message={BOLT_MESSAGES[step]} />
+      <InstallSteps current={step} isError={isError} />
       {isError && (
         <Box marginTop={1} flexDirection="column">
           <Text color="red">Installation failed: {error}</Text>
