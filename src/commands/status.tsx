@@ -3,7 +3,8 @@ import React, { useState, useEffect } from "react";
 import { render, Text, Box, useInput, useApp } from "ink";
 import { Banner } from "../components/Banner.js";
 import { ServiceTable } from "../components/ServiceTable.js";
-import { getSwarmServices, isSwarmActive } from "../lib/docker.js";
+import type { SwarmService } from "../lib/docker.js";
+import { getRunningServices } from "../lib/status-services.js";
 import { loadConfig } from "../lib/config.js";
 import { loadModuleRegistry, type Module } from "../lib/modules.js";
 import { getLatestVersions, isLatest } from "../lib/release-tracker.js";
@@ -11,7 +12,7 @@ import { validateLicenseWithKeygen, type CachedLicense } from "../lib/keygen.js"
 
 function StatusDashboard(): React.ReactElement {
   const { exit } = useApp();
-  const [services, setServices] = useState<Awaited<ReturnType<typeof getSwarmServices>>>([]);
+  const [services, setServices] = useState<SwarmService[]>([]);
   const [modules, setModules] = useState<Module[]>([]);
   const [licenseCache, setLicenseCache] = useState<CachedLicense | null>(null);
   const [licenseOnline, setLicenseOnline] = useState(false);
@@ -24,19 +25,18 @@ function StatusDashboard(): React.ReactElement {
     async function fetchStatus() {
       try {
         const config = await loadConfig();
-        const stackName = `industream-${config.defaultEnvironment}`;
-        const active = await isSwarmActive();
-        if (!active) {
-          setError("Docker Swarm is not active. Run: docker swarm init");
+        const running = await getRunningServices(config);
+        if (!running.active) {
+          setError(running.inactiveHint);
           setLoading(false);
           return;
         }
-        const [result, registry, latestVersions, licenseResult] = await Promise.all([
-          getSwarmServices(stackName),
+        const [registry, latestVersions, licenseResult] = await Promise.all([
           loadModuleRegistry(),
           getLatestVersions(),
           validateLicenseWithKeygen(),
         ]);
+        const result = running.services;
         let updateCount = 0;
         if (latestVersions) {
           for (const service of result) {
@@ -152,16 +152,15 @@ async function runFallbackStatus(): Promise<void> {
 
   try {
     const config = await loadConfig();
-    const stackName = `industream-${config.defaultEnvironment}`;
-    const active = await isSwarmActive();
+    const platform = await getRunningServices(config);
 
-    if (!active) {
-      console.log("  \x1b[31mDocker Swarm is not active. Run: docker swarm init\x1b[0m");
+    if (!platform.active) {
+      console.log(`  \x1b[31m${platform.inactiveHint}\x1b[0m`);
       console.log("");
       return;
     }
 
-    const services = await getSwarmServices(stackName);
+    const services = platform.services;
     const running = services.filter((s) => s.isRunning).length;
 
     console.log("  \x1b[1mServices\x1b[0m");

@@ -8,8 +8,8 @@ import {
   getDeployedVersions,
   isPlatformInstalled,
 } from "../lib/swarm-repo.js";
-import { getSwarmServices, isSwarmActive } from "../lib/docker.js";
 import type { SwarmService } from "../lib/docker.js";
+import { getRunningServices } from "../lib/status-services.js";
 import { loadModuleRegistry, type Module } from "../lib/modules.js";
 
 interface VersionComparison {
@@ -132,12 +132,11 @@ function UpdateDashboard(): React.ReactElement {
 
         const envVersions = await getDeployedVersions(platformDir);
 
-        const swarmActive = await isSwarmActive();
-        let services: SwarmService[] = [];
-        if (swarmActive) {
-          const stackName = `industream-${config.defaultEnvironment}`;
-          services = await getSwarmServices(stackName);
-        }
+        // Runtime-aware: pulls running services for Swarm or Compose alike.
+        // When the stack is down, `services` stays empty and the table falls
+        // back to env-declared versions only.
+        const running = await getRunningServices(config);
+        const services: SwarmService[] = running.services;
 
         const registry = loadModuleRegistry();
         const table = buildVersionTable(envVersions, services, registry.modules);
