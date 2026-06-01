@@ -13,6 +13,15 @@ export interface Module {
   serviceName?: string;
   stackFile?: string;
   imagePattern?: string;
+  /**
+   * Optional image path of the enterprise (`-ee`) variant of this worker.
+   * Present only on dual-variant modules where a community image (`imagePattern`)
+   * is published on GHCR alongside a feature-enhanced enterprise image on the
+   * dedicated Harbor (`ENTERPRISE_REGISTRY`). The dispatcher pipeline uses
+   * this field to route the enterprise build to the right registry.
+   * Example: `"flowmaker.boxes/flow-box-data-logger-ee"`.
+   */
+  enterpriseVariant?: string;
   /** Keygen entitlement code required to enable this module (proprietary only) */
   entitlement?: string;
 }

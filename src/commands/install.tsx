@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { render, Text, Box, useApp, useInput } from "ink";
-import { BoltAnimated } from "../components/BoltAnimated.js";
 import { BoltBuilder } from "../components/BoltBuilder.js";
 import { Banner } from "../components/Banner.js";
 import { ModuleSelector } from "../components/ModuleSelector.js";
@@ -33,40 +32,43 @@ type Step =
   | "done"
   | "error";
 
-const BOLT_MESSAGES: Record<Step, string[]> = {
-  prerequisites: [
-    "Let me check your system...",
-    "Hmm, let me see what we're working with...",
-    "Just making sure everything's in order...",
-  ],
-  clone: [
-    "Downloading the good stuff...",
-    "Grabbing the latest recipes from HQ...",
-    "Almost there, just fetching a few things...",
-  ],
-  modules: [
-    "Checking your module lineup...",
-    "Let's see what you've got...",
-  ],
-  setup: [
-    "Setting everything up, hang tight!",
-    "Wiring all the things together...",
-    "This is the fun part!",
-    "Pulling images... this might take a minute.",
-    "Still working... good things take time!",
-    "Making your factory smarter, one container at a time...",
-    "If I had fingers, I'd be crossing them...",
-    "Almost there... I think.",
-    "Did you know? Industream can monitor a blast furnace!",
-    "Loading industrial awesomeness...",
-  ],
-  done: [
-    "Welcome to Industream! You're all set!",
-  ],
-  error: [
-    "Oops, something went sideways...",
-  ],
-};
+// Structured install phases (replaces the animated bolt with a clear checklist).
+const INSTALL_STEPS: { id: Step; label: string }[] = [
+  { id: "prerequisites", label: "Check prerequisites" },
+  { id: "clone", label: "Download platform files" },
+  { id: "modules", label: "Resolve modules" },
+  { id: "setup", label: "Configure & deploy" },
+];
+
+function InstallSteps({
+  current,
+  isError,
+}: {
+  current: Step;
+  isError: boolean;
+}): React.ReactElement {
+  const currentIndex = INSTALL_STEPS.findIndex((s) => s.id === current);
+  return (
+    <Box flexDirection="column">
+      {INSTALL_STEPS.map((s, i) => {
+        let icon = "○";
+        let color = "gray";
+        if (current === "done" || (currentIndex >= 0 && i < currentIndex)) {
+          icon = "✓";
+          color = "green";
+        } else if (i === currentIndex) {
+          icon = isError ? "✗" : "⚙";
+          color = isError ? "red" : "blueBright";
+        }
+        return (
+          <Text key={s.id} color={color}>
+            {icon} {s.label}
+          </Text>
+        );
+      })}
+    </Box>
+  );
+}
 
 // Run a script and stream last meaningful line to a callback
 async function runScript(
@@ -107,7 +109,7 @@ async function runScript(
   await subprocess;
 }
 
-function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }: { environment?: string; domain?: string; tls?: string }): React.ReactElement {
+function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, runtime: cliRuntime }: { environment?: string; domain?: string; tls?: string; runtime?: string }): React.ReactElement {
   const { exit } = useApp();
   const [introDone, setIntroDone] = useState(false);
   const [step, setStep] = useState<Step>("prerequisites");
@@ -131,6 +133,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
   const [configDone, setConfigDone] = useState(!needsPrompt);
   const [domain, setDomain] = useState(cliDomain ?? "industream.platform.lan");
   const [tls, setTls] = useState<string>(cliTls ?? "selfsigned");
+  const [runtimeName, setRuntimeName] = useState<string>(cliRuntime === "compose" ? "compose" : "swarm");
   const [licenseLabel, setLicenseLabel] = useState<string>("Community (no license)");
 
   // Load cached license info once for the interactive menu
@@ -183,10 +186,16 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
             "Docker is not installed. Install Docker first: https://docs.docker.com/engine/install/",
           );
         }
-        setStatusMessage("Checking Docker Swarm...");
-        if (!(await isSwarmActive())) {
-          setStatusMessage("Initializing Docker Swarm...");
-          await execa("/usr/bin/docker", ["swarm", "init"]);
+        // Only the Swarm runtime needs a Swarm. Compose runs on plain Docker,
+        // so don't initialize Swarm when it isn't required.
+        if (runtimeName === "swarm") {
+          setStatusMessage("Checking Docker Swarm...");
+          if (!(await isSwarmActive())) {
+            setStatusMessage("Initializing Docker Swarm...");
+            await execa("/usr/bin/docker", ["swarm", "init"]);
+          }
+        } else {
+          setStatusMessage("Compose runtime — skipping Docker Swarm");
         }
 
         // Step 2: Clone repo
@@ -198,7 +207,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
           setStatusMessage("Platform files already present, updating...");
           await execa("git", ["-C", resolved, "pull", "--ff-only"]);
         } else {
-          await cloneSwarmRepo(platformDirectory);
+          await cloneSwarmRepo(platformDirectory, (line) => setProgressLine(line));
         }
 
         // Ensure base .env exists (copied from .env.example)
@@ -215,12 +224,16 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
           }
         }
 
-        // Set domain and TLS mode in .env before deploy
-        // Default: selfsigned. letsencrypt only when explicitly requested via --tls.
+        // Set domain, TLS mode and runtime in .env before deploy.
+        // The runtime is captured either from --runtime CLI flag or via the
+        // interactive prompt step; it's persisted in .env so that subsequent
+        // `industream deploy` invocations route to the right runtime via
+        // getRuntime() in src/lib/runtimes/index.ts.
         const tlsMode = tls === "letsencrypt" ? "letsencrypt" : "selfsigned";
-        setStatusMessage(`Configuring domain: ${domain} (TLS: ${tlsMode})`);
+        setStatusMessage(`Configuring domain: ${domain} (TLS: ${tlsMode}, runtime: ${runtimeName})`);
         await updateEnvValue(platformDirectory, "INDUSTREAM_DOMAIN", domain);
         await updateEnvValue(platformDirectory, "TLS_MODE", tlsMode);
+        await updateEnvValue(platformDirectory, "RUNTIME", runtimeName);
         if (tlsMode === "letsencrypt") {
           await updateEnvValue(platformDirectory, "ACME_EMAIL", "admin@industream.com");
         }
@@ -283,11 +296,39 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
         // Step 4: Setup
         setStep("setup");
 
+        // Persist both registry hostnames in .env so stack/compose files can
+        // resolve image paths per service (community → GHCR, enterprise → Harbor).
+        // DOCKER_REGISTRY is kept as a back-compat alias for older stack files
+        // that still reference the single-registry variable.
+        const {
+          ensureRegistryLogin,
+          getRegistryForPlan,
+          COMMUNITY_REGISTRY,
+          ENTERPRISE_REGISTRY,
+        } = await import("../lib/registry-login.js");
+        await updateEnvValue(
+          platformDirectory,
+          "COMMUNITY_REGISTRY",
+          COMMUNITY_REGISTRY,
+        );
+        await updateEnvValue(
+          platformDirectory,
+          "ENTERPRISE_REGISTRY",
+          ENTERPRISE_REGISTRY,
+        );
+        const dockerRegistry = getRegistryForPlan(plan);
+        await updateEnvValue(
+          platformDirectory,
+          "DOCKER_REGISTRY",
+          dockerRegistry,
+        );
+        console.log(
+          `  Configured registries: community=${COMMUNITY_REGISTRY}, enterprise=${ENTERPRISE_REGISTRY}`,
+        );
+
         // Check / setup Docker registry login
         setStatusMessage("Checking registry access...");
         setProgressLine("");
-        const dockerRegistry = "842775dh.c1.gra9.container-registry.ovh.net";
-        const { ensureRegistryLogin } = await import("../lib/registry-login.js");
         await ensureRegistryLogin(dockerRegistry, plan);
 
         setStatusMessage("Deploying Traefik...");
@@ -423,7 +464,6 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
 
   const isDone = step === "done";
   const isError = step === "error";
-  const isDancing = !isError;
 
   // Show the building intro before the install starts
   if (!introDone) {
@@ -434,7 +474,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
     );
   }
 
-  // Interactive config prompt (domain + TLS mode)
+  // Interactive config prompt (runtime + domain + TLS mode)
   if (!configDone) {
     return (
       <Box flexDirection="column">
@@ -442,11 +482,13 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
         <InstallConfigPrompt
           defaultDomain={domain}
           defaultTls={(tls === "letsencrypt" ? "letsencrypt" : "selfsigned")}
+          defaultRuntime={runtimeName === "compose" ? "compose" : "swarm"}
           initialLicenseLabel={licenseLabel}
           activateLicense={handleActivateLicense}
           onComplete={(config) => {
             setDomain(config.domain);
             setTls(config.tls);
+            setRuntimeName(config.runtime);
             setConfigDone(true);
           }}
         />
@@ -457,7 +499,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls }:
   return (
     <Box flexDirection="column">
       <Banner />
-      <BoltAnimated dancing={isDancing} message={BOLT_MESSAGES[step]} />
+      <InstallSteps current={step} isError={isError} />
       {isError && (
         <Box marginTop={1} flexDirection="column">
           <Text color="red">Installation failed: {error}</Text>
@@ -514,7 +556,12 @@ async function confirmReinstall(): Promise<boolean> {
   });
 }
 
-export async function runInstall(environment?: string, domain?: string, tls?: string): Promise<void> {
+export async function runInstall(
+  environment?: string,
+  domain?: string,
+  tls?: string,
+  runtime?: string,
+): Promise<void> {
   const alreadyInstalled = await isPlatformInstalled("~/industream-platform");
   if (alreadyInstalled) {
     const confirmed = await confirmReinstall();
@@ -523,5 +570,12 @@ export async function runInstall(environment?: string, domain?: string, tls?: st
       return;
     }
   }
-  render(<InstallWizard environment={environment ?? "prod"} domain={domain} tls={tls} />);
+  render(
+    <InstallWizard
+      environment={environment ?? "prod"}
+      domain={domain}
+      tls={tls}
+      runtime={runtime}
+    />,
+  );
 }

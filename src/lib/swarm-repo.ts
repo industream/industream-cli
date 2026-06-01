@@ -33,9 +33,32 @@ export async function isPlatformInstalled(platformDir: string): Promise<boolean>
   }
 }
 
-export async function cloneSwarmRepo(platformDir: string): Promise<void> {
+export async function cloneSwarmRepo(
+  platformDir: string,
+  onProgress?: (line: string) => void,
+): Promise<void> {
   const resolved = resolvePlatformDir(platformDir);
-  await execa("git", ["clone", "--quiet", REPO_URL, resolved]);
+  // --progress forces git to emit "Receiving objects: XX%..." even when
+  // stderr isn't a TTY. We pipe it ourselves so we can stream it to the
+  // Ink wizard via onProgress (otherwise Ink's alt-screen swallows it).
+  const child = execa("git", ["clone", "--progress", REPO_URL, resolved], {
+    stderr: "pipe",
+  });
+  if (onProgress && child.stderr) {
+    let buffer = "";
+    child.stderr.on("data", (chunk: Buffer) => {
+      // git emits progress with \r between updates and \n on completion.
+      // Normalize to \n, then push the last non-empty line.
+      buffer = (buffer + chunk.toString("utf8")).replace(/\r/g, "\n");
+      const parts = buffer.split("\n");
+      buffer = parts.pop() ?? "";
+      for (const line of parts) {
+        const trimmed = line.trim();
+        if (trimmed) onProgress(trimmed);
+      }
+    });
+  }
+  await child;
 }
 
 export async function pullSwarmRepo(platformDir: string): Promise<string> {

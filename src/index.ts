@@ -12,6 +12,27 @@ import { runLicense } from "./commands/license.js";
 import { runUninstall } from "./commands/uninstall.js";
 import { runWorkerAdd, runWorkerList, runWorkerRemove } from "./commands/worker.js";
 import { runMenu } from "./commands/menu.js";
+import {
+  runDevCreate,
+  runDevUp,
+  runDevDown,
+  runDevList,
+  runDevPs,
+  runDevLogs,
+  runDevDelete,
+  runDevLaunchWorker,
+  runDevCdnReset,
+  runDevHosts,
+  runDevInit,
+  runDevSync,
+} from "./commands/dev.js";
+import {
+  runCaddyRebuild,
+  runCaddyStop,
+  runCaddyDelete,
+  runCaddyLogs,
+  runCaddyCa,
+} from "./commands/caddy.js";
 
 const program = new Command();
 
@@ -34,11 +55,23 @@ program
 program
   .command("deploy")
   .description("Deploy an environment")
-  .option("--env <environment>", "Environment to deploy (prod, dev, staging)")
-  .option("--with-demo", "Include demo simulators")
+  .option("--env <environment>", "Environment to deploy (prod, dev, staging, or compose instance name)")
+  .option("--with-demo", "Include demo simulators (Swarm)")
+  .option("--with-workers", "Bring up workers alongside core services (Compose)")
+  .option("--with-uimaker", "Bring up UIMaker alongside core services (Compose)")
+  .option(
+    "--allow-compose-prod",
+    "Allow ComposeRuntime to proceed when NODE_ENV=production (bypass guard)",
+  )
   .option("-y, --yes", "Skip interactive prompts")
   .action((options) => {
-    runDeploy(options.env, { withDemo: options.withDemo, yes: options.yes });
+    runDeploy(options.env, {
+      withDemo: options.withDemo,
+      withWorkers: options.withWorkers,
+      withUimaker: options.withUimaker,
+      allowComposeProd: options.allowComposeProd,
+      yes: options.yes,
+    });
   });
 
 program
@@ -81,8 +114,13 @@ program
   .option("--env <environment>", "Environment to deploy (prod, dev, staging)", "prod")
   .option("--domain <domain>", "Platform domain name", "industream.platform.lan")
   .option("--tls <mode>", "TLS mode (selfsigned, letsencrypt). Default: selfsigned")
+  .option(
+    "--runtime <runtime>",
+    "Container orchestrator (swarm or compose). Locked in .env. Default: swarm",
+    "swarm",
+  )
   .action((options) => {
-    runInstall(options.env, options.domain, options.tls);
+    runInstall(options.env, options.domain, options.tls, options.runtime);
   });
 
 program
@@ -141,5 +179,173 @@ workerCommand
   });
 
 program.addCommand(workerCommand);
+
+// ============================================================================
+// `industream dev` — Compose multi-instance management (fm).
+// Thin wrappers around the thematic bash scripts under
+// industream-stack/scripts/compose/. See docs/RUNTIME-STRATEGY.md §3.3.
+// ============================================================================
+const devCommand = new Command("dev").description(
+  "Manage Compose dev instances (create, up, down, list, ...)",
+);
+
+devCommand
+  .command("create")
+  .argument("<name>", "Instance name")
+  .description("Create a new Compose instance (interactive prompts)")
+  .action((name: string) => {
+    runDevCreate(name);
+  });
+
+devCommand
+  .command("up")
+  .argument("<name>", "Instance name")
+  .description("Start a Compose instance")
+  .option("--workers", "Also bring up the workers stack")
+  .option("--uimaker", "Also bring up UIMaker (profile)")
+  .option("--community", "Use the public community Harbor (no premium creds required)")
+  .option("--local", "Skip image pull, use locally available images only")
+  .action((name: string, options) => {
+    runDevUp(name, options);
+  });
+
+devCommand
+  .command("down")
+  .argument("<name>", "Instance name")
+  .description("Stop a Compose instance (keep volumes)")
+  .action((name: string) => {
+    runDevDown(name);
+  });
+
+devCommand
+  .command("list")
+  .description("List all Compose instances")
+  .action(() => {
+    runDevList();
+  });
+
+devCommand
+  .command("ps")
+  .argument("<name>", "Instance name")
+  .description("List containers of an instance")
+  .action((name: string) => {
+    runDevPs(name);
+  });
+
+devCommand
+  .command("logs")
+  .argument("<name>", "Instance name")
+  .argument("[service]", "Optional service name")
+  .description("View instance logs")
+  .action((name: string, service?: string) => {
+    runDevLogs(name, service);
+  });
+
+devCommand
+  .command("delete")
+  .argument("<name>", "Instance name")
+  .description("Delete an instance and its data (destructive)")
+  .action((name: string) => {
+    runDevDelete(name);
+  });
+
+devCommand
+  .command("launch-worker")
+  .argument("<instance>", "Instance name")
+  .argument("<worker>", "Worker name")
+  .argument("[process-args...]", "Optional process command override")
+  .description("Run a local worker process against a running instance")
+  .option("--id <id>", "Worker id (default: worker-local-<random>)")
+  .option("--port <port>", "ZMQ port to bind (default: auto from 5570)")
+  .option("--flowmaker-workers-path <path>", "Path to worker-cli root")
+  .action((instance: string, worker: string, processArgs: string[], options) => {
+    runDevLaunchWorker(instance, worker, processArgs ?? [], {
+      id: options.id,
+      port: options.port,
+      workersPath: options.flowmakerWorkersPath,
+    });
+  });
+
+devCommand
+  .command("cdn-reset")
+  .argument("<name>", "Instance name")
+  .argument("[worker]", "Worker name or 'all' (default)")
+  .description("Reset CDN seed flag for workers (triggers re-seed on restart)")
+  .action((name: string, worker?: string) => {
+    runDevCdnReset(name, worker);
+  });
+
+devCommand
+  .command("hosts")
+  .description("Print /etc/hosts entries for all known instances")
+  .action(() => {
+    runDevHosts();
+  });
+
+devCommand
+  .command("init")
+  .argument("<name>", "Instance name")
+  .description("Initialize confighub (environment + scheduler)")
+  .action((name: string) => {
+    runDevInit(name);
+  });
+
+devCommand
+  .command("sync")
+  .argument("<name>", "Instance name")
+  .description("Sync instance versions from release-tracker")
+  .action((name: string) => {
+    runDevSync(name);
+  });
+
+program.addCommand(devCommand);
+
+// ============================================================================
+// `industream caddy:*` — local reverse-proxy management (community dev).
+// Commander doesn't accept ":" in command names, so we expose them as aliases
+// on a nested `caddy` sub-command: `industream caddy rebuild` works, and the
+// bash dispatcher keeps `industream caddy:rebuild` for power users.
+// ============================================================================
+const caddyCommand = new Command("caddy").description(
+  "Manage the local Caddy reverse proxy (community Compose dev)",
+);
+
+caddyCommand
+  .command("rebuild")
+  .description("Regenerate Caddy config from all instance .env files")
+  .action(() => {
+    runCaddyRebuild();
+  });
+
+caddyCommand
+  .command("stop")
+  .description("Stop the Caddy container")
+  .action(() => {
+    runCaddyStop();
+  });
+
+caddyCommand
+  .command("delete")
+  .description("Stop Caddy and remove all its data (CA, volumes)")
+  .action(() => {
+    runCaddyDelete();
+  });
+
+caddyCommand
+  .command("logs")
+  .description("Tail Caddy logs")
+  .action(() => {
+    runCaddyLogs();
+  });
+
+caddyCommand
+  .command("ca")
+  .argument("[dest]", "Destination path for the exported CA (default: ~/caddy-root-ca.crt)")
+  .description("Export the Caddy root CA certificate")
+  .action((dest?: string) => {
+    runCaddyCa(dest);
+  });
+
+program.addCommand(caddyCommand);
 
 program.parse();

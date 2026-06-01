@@ -34,23 +34,29 @@ DIM='\033[2m'
 NC='\033[0m'
 
 echo ""
-echo -e "${BLUE}        ┌───────┐${NC}"
-echo -e "${BLUE}        │ ◉   ◉ │${NC}"
-echo -e "${BLUE}        │  ───  │${NC}"
-echo -e "${BLUE}     ┌──┤       ├──┐${NC}"
-echo -e "${BLUE}     │  └───┬───┘  │${NC}"
-echo -e "${BLUE}     ◯      │      ◯${NC}"
-echo -e "${BLUE}     │   ┌──┴──┐   │${NC}"
-echo -e "${BLUE}     └───┤     ├───┘${NC}"
-echo -e "${BLUE}         │     │${NC}"
-echo -e "${BLUE}         ┴─┐ ┌─┴${NC}"
-echo -e "${BLUE}           │ │${NC}"
-echo -e "${BLUE}          ─┘ └─${NC}"
-echo ""
-echo -e "${BOLD}  Hey! I'm ${BLUE}Bolt${NC}${BOLD}, your install companion.${NC}"
-echo -e "${DIM}  I'll get everything set up for you.${NC}"
+echo -e "${BLUE}${BOLD}  INDUSTREAM${NC} ${DIM}— platform installer${NC}"
+echo -e "${DIM}  Installs prerequisites and the Industream CLI.${NC}"
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+# =============================================================================
+# Orchestrator choice — Compose needs no Swarm, so ask before installing it.
+# =============================================================================
+RUNTIME="${INDUSTREAM_RUNTIME:-}"
+if [ -z "$RUNTIME" ]; then
+  echo -e "${BOLD}  Choose orchestrator:${NC}"
+  echo -e "    ${BOLD}1)${NC} Swarm   ${DIM}(production cluster)${NC}"
+  echo -e "    ${BOLD}2)${NC} Compose ${DIM}(dev / demo, single host — no Swarm)${NC}"
+  printf "  Your choice [1]: "
+  read -r _rt_choice < /dev/tty 2>/dev/null || _rt_choice=""
+  case "$_rt_choice" in
+    2) RUNTIME="compose" ;;
+    *) RUNTIME="swarm" ;;
+  esac
+  echo ""
+fi
+echo -e "  ${GREEN}✓${NC} Orchestrator: ${BOLD}${RUNTIME}${NC}"
 echo ""
 
 # =============================================================================
@@ -123,24 +129,29 @@ else
 fi
 
 # =============================================================================
-# Step 3: Docker Swarm
+# Step 3: Docker Swarm — only for the swarm runtime. Compose runs on plain
+# Docker, so we never initialize a Swarm it will not use.
 # =============================================================================
-SWARM_INIT_OUTPUT=$(docker swarm init 2>&1) && {
-  echo -e "  ${GREEN}✓${NC} Docker Swarm initialized"
-} || {
-  if echo "$SWARM_INIT_OUTPUT" | grep -q "already part of a swarm"; then
-    echo -e "  ${GREEN}✓${NC} Docker Swarm active"
-  else
-    # Retry with explicit advertise address
-    if docker swarm init --advertise-addr "$(hostname -I | awk '{print $1}')" 2>/dev/null; then
-      echo -e "  ${GREEN}✓${NC} Docker Swarm initialized"
+if [ "$RUNTIME" = "swarm" ]; then
+  SWARM_INIT_OUTPUT=$(docker swarm init 2>&1) && {
+    echo -e "  ${GREEN}✓${NC} Docker Swarm initialized"
+  } || {
+    if echo "$SWARM_INIT_OUTPUT" | grep -q "already part of a swarm"; then
+      echo -e "  ${GREEN}✓${NC} Docker Swarm active"
     else
-      echo -e "  ${RED}✗${NC} Failed to initialize Docker Swarm"
-      echo -e "  ${DIM}$SWARM_INIT_OUTPUT${NC}"
-      exit 1
+      # Retry with explicit advertise address
+      if docker swarm init --advertise-addr "$(hostname -I | awk '{print $1}')" 2>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} Docker Swarm initialized"
+      else
+        echo -e "  ${RED}✗${NC} Failed to initialize Docker Swarm"
+        echo -e "  ${DIM}$SWARM_INIT_OUTPUT${NC}"
+        exit 1
+      fi
     fi
-  fi
-}
+  }
+else
+  echo -e "  ${GREEN}✓${NC} Compose runtime — skipping Docker Swarm"
+fi
 
 # =============================================================================
 # Step 4: Node.js 22+
@@ -244,7 +255,7 @@ echo -e "  ${BOLD}Step 1:${NC} Wait for automatic logout (5 seconds)"
 echo -e "  ${BOLD}Step 2:${NC} Reconnect:"
 echo -e "           ${BOLD}ssh ${USER}@$(hostname -I | awk '{print $1}')${NC}"
 echo -e "  ${BOLD}Step 3:${NC} Type:"
-echo -e "           ${BOLD}industream install${NC}"
+echo -e "           ${BOLD}industream install --runtime ${RUNTIME}${NC}"
 echo ""
 echo -e "${YELLOW}${BOLD}  Logging out in 5 seconds...${NC}"
 echo ""

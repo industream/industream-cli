@@ -34,17 +34,6 @@
       "subcategory": "Tools"
     },
     {
-      "id": "user-tenant-management",
-      "name": "User & tenant management",
-      "category": "Platform",
-      "license": "bsl",
-      "status": "ready",
-      "serviceName": "keycloak",
-      "stackFile": "docker-stack.yml",
-      "imagePattern": "keycloak/keycloak",
-      "subcategory": "Tools"
-    },
-    {
       "id": "dashboard-alerting",
       "name": "Dashboard & alerting framework",
       "category": "Platform",
