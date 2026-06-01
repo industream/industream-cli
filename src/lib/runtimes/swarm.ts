@@ -20,6 +20,7 @@ import {
 } from "../registry-login.js";
 import { SwarmSecrets } from "../secrets/swarm.js";
 import type { SecretsBackend } from "../secrets/index.js";
+import type { DeployReporter, ServiceHealth } from "../deploy-reporter.js";
 import type {
   DeployOptions,
   Environment,
@@ -47,6 +48,7 @@ export class SwarmRuntime implements Runtime {
   async deploy(
     environment: Environment | undefined,
     options: DeployOptions = {},
+    reporter?: DeployReporter,
   ): Promise<void> {
     const platformDir = resolvePlatformDir(this.config.platformDir);
 
@@ -55,7 +57,8 @@ export class SwarmRuntime implements Runtime {
       process.exit(1);
     }
 
-    // Choose environment: explicit arg > interactive prompt
+    // Choose environment: explicit arg > interactive prompt. With a dashboard
+    // the caller resolves env beforehand (no prompt while Ink owns the screen).
     let env = environment;
     if (!env) {
       const deployed = await listDeployedStacks();
@@ -70,75 +73,143 @@ export class SwarmRuntime implements Runtime {
       | "pro"
       | "enterprise";
 
-    // Pick the right Harbor per plan: community pulls from the public Harbor
-    // (anonymous, no login), everything else authenticates to the premium
-    // Harbor with the Keygen-provided credentials.
     const registry = getRegistryForPlan(plan);
     await ensureRegistryLogin(registry, plan);
 
-    // Regenerate domain-dependent configs (self-signed certs + UIFusion JSON).
-    // This ensures any change to INDUSTREAM_DOMAIN or TLS_MODE in .env is picked
-    // up on the next deploy — otherwise UIFusion keeps pointing to the old URL
-    // and self-signed certs stay on the old hostname.
     const envVars = await loadEnvFile(this.config.platformDir);
     const tlsMode = envVars.TLS_MODE ?? "selfsigned";
 
+    reporter?.setSteps([
+      { id: "certs", label: "Generate certificates", status: tlsMode === "selfsigned" ? "pending" : "skipped" },
+      { id: "uifusion", label: "Generate UIFusion config", status: "pending" },
+      { id: "secrets", label: `Create secrets (${env})`, status: "pending" },
+      { id: "stack", label: `Deploy industream-${env}`, status: "pending" },
+      { id: "converge", label: "Wait for services", status: "pending" },
+    ]);
+
     if (tlsMode === "selfsigned") {
-      console.log(
-        `\n  Regenerating self-signed certificates for ${envVars.INDUSTREAM_DOMAIN ?? "default domain"}...`,
+      await this.runStep(
+        reporter, "certs",
+        `Regenerating self-signed certificates for ${envVars.INDUSTREAM_DOMAIN ?? "default domain"}`,
+        join(platformDir, "scripts/generate/generate-certs.sh"), [], platformDir,
+        { allowFail: true },
       );
-      await execa(join(platformDir, "scripts/generate/generate-certs.sh"), [], {
-        cwd: platformDir,
-        stdio: "inherit",
-      }).catch((err) => {
-        console.log(
-          `  Could not regenerate certs: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
     }
 
-    console.log(`\n  Regenerating UIFusion configuration for ${env}...`);
-    await execa(
+    await this.runStep(
+      reporter, "uifusion", `Regenerating UIFusion configuration for ${env}`,
       join(platformDir, "scripts/generate/generate-uifusion-config.sh"),
-      ["--force", "--env", env],
-      { cwd: platformDir, stdio: "inherit" },
-    ).catch((err) => {
-      console.log(
-        `  Could not regenerate UIFusion config: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    });
+      ["--force", "--env", env], platformDir, { allowFail: true },
+    );
 
-    // Create secrets if they don't exist for this environment
-    console.log(`\n  Creating secrets for ${env}...`);
-    await execa(
+    await this.runStep(
+      reporter, "secrets", `Creating secrets for ${env}`,
       join(platformDir, "scripts/setup/create-secrets.sh"),
-      ["--env", env],
-      { cwd: platformDir, stdio: "inherit" },
-    ).catch(() => {
-      console.log(
-        "  Secrets may already exist or script not found — continuing.",
-      );
-    });
+      ["--env", env], platformDir, { allowFail: true },
+    );
 
     const args = ["--env", env];
-    if (options.withDemo) {
-      args.push("--with-demo");
-    }
+    if (options.withDemo) args.push("--with-demo");
     if (deployFlags.excludedServices.length > 0) {
       args.push("--exclude", deployFlags.excludedServices.join(","));
     }
-    if (plan === "community") {
-      args.push("--community");
-    }
+    if (plan === "community") args.push("--community");
     // Skip memory check in non-interactive CLI mode (no TTY for confirmation prompt)
     args.push("--skip-memory-check");
 
-    const scriptPath = join(platformDir, "scripts", "deploy-swarm.sh");
+    // Without a reporter, keep the original throw-on-failure behaviour.
+    const stackOk = await this.runStep(
+      reporter, "stack", `Deploying industream-${env}`,
+      join(platformDir, "scripts", "deploy-swarm.sh"), args, platformDir,
+      { allowFail: Boolean(reporter) },
+    );
 
-    await execa(scriptPath, args, {
-      cwd: platformDir,
-      stdio: "inherit",
+    if (!reporter) return;
+
+    if (!stackOk) {
+      reporter.setResult({ ok: false, summary: "deploy-swarm.sh failed — see log", urls: [] });
+      return;
+    }
+
+    reporter.step("converge", "running");
+    const converged = await this.reportConverge(reporter, env);
+    reporter.step("converge", converged ? "done" : "failed");
+
+    const domain = envVars.INDUSTREAM_DOMAIN ?? "industream.platform.lan";
+    const prefix = env === "prod" ? "" : `${env}.`;
+    reporter.setResult({
+      ok: converged,
+      summary: converged ? `${env} deployed` : "services did not converge in time",
+      urls: [
+        { label: "Hub", url: `https://${prefix}${domain}` },
+        { label: "Grafana", url: `https://dashboard.${prefix}${domain}` },
+        { label: "DataCatalog", url: `https://datacatalog.${prefix}${domain}` },
+      ],
     });
+  }
+
+  /** Run one phase. With a reporter: stream output to the log pane and toggle
+   * the step. Without: preserve the original inline stdout behaviour. */
+  private async runStep(
+    reporter: DeployReporter | undefined,
+    id: string,
+    label: string,
+    cmd: string,
+    args: string[],
+    cwd: string,
+    opts: { allowFail?: boolean } = {},
+  ): Promise<boolean> {
+    if (reporter) {
+      reporter.step(id, "running");
+      const child = execa(cmd, args, { cwd });
+      const pump = (buf: Buffer) =>
+        buf.toString().split("\n").forEach((l) => { if (l.trim()) reporter.log(l); });
+      child.stdout?.on("data", pump);
+      child.stderr?.on("data", pump);
+      try {
+        await child;
+        reporter.step(id, "done");
+        return true;
+      } catch (err) {
+        reporter.log(err instanceof Error ? err.message : String(err));
+        reporter.step(id, opts.allowFail ? "skipped" : "failed");
+        return false;
+      }
+    }
+    console.log(`\n  ${label}...`);
+    try {
+      await execa(cmd, args, { cwd, stdio: "inherit" });
+      return true;
+    } catch (err) {
+      if (opts.allowFail) {
+        console.log(`  Skipped: ${err instanceof Error ? err.message : String(err)}`);
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /** Poll `docker stack services` until every service is at full replicas. */
+  private async reportConverge(
+    reporter: DeployReporter,
+    env: Environment,
+    timeoutMs = 180_000,
+  ): Promise<boolean> {
+    const stackName = `industream-${env}`;
+    const deadline = Date.now() + timeoutMs;
+    let services: ServiceHealth[] = [];
+    while (Date.now() < deadline) {
+      services = (await listStackServices(stackName)).map((s) => {
+        const [ready = "0", total = "0"] = s.replicas.split("/");
+        const r = parseInt(ready, 10) || 0;
+        const t = parseInt(total, 10) || 0;
+        return { name: s.name, ready: r, total: t, converged: t > 0 && r === t };
+      });
+      reporter.setServices(services);
+      if (services.length > 0 && services.every((s) => s.converged)) return true;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    return services.length > 0 && services.every((s) => s.converged);
   }
 
   /**

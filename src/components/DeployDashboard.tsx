@@ -94,9 +94,10 @@ export function DeployDashboard({ reporter, title }: DeployDashboardProps): Reac
               <Text color="gray">{snap.result.summary}</Text>
               <Box marginTop={1} flexDirection="column">
                 {snap.result.urls.map((u) => (
-                  <Text key={u.label}>
-                    <Text color="cyan">{u.label}</Text>: {u.url}
-                  </Text>
+                  <Box key={u.label} flexDirection="column">
+                    <Text color="cyan">{u.label}</Text>
+                    <Text wrap="truncate-end">{u.url}</Text>
+                  </Box>
                 ))}
               </Box>
             </>

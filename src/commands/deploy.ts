@@ -13,5 +13,39 @@ export async function runDeploy(
 ): Promise<void> {
   const config = await loadConfig();
   const runtime = await getRuntime(config);
-  await runtime.deploy(environment, options ?? {});
+
+  // Live 4-pane dashboard when we have a TTY and an explicit environment
+  // (no interactive env prompt while Ink owns the screen). Swarm emits
+  // progress today; other cases use the plain stdout path.
+  const useDashboard =
+    Boolean(environment) && Boolean(process.stdout.isTTY) && runtime.name === "swarm";
+
+  if (!useDashboard) {
+    await runtime.deploy(environment, options ?? {});
+    return;
+  }
+
+  const [{ render }, React, { DeployReporter }, { DeployDashboard }] =
+    await Promise.all([
+      import("ink"),
+      import("react"),
+      import("../lib/deploy-reporter.js"),
+      import("../components/DeployDashboard.js"),
+    ]);
+
+  const reporter = new DeployReporter();
+  const app = render(
+    React.createElement(DeployDashboard, {
+      reporter,
+      title: `Industream · ${environment} · ${runtime.name}`,
+    }),
+  );
+
+  try {
+    await runtime.deploy(environment, options ?? {}, reporter);
+    // Let the final frame (result pane) flush before tearing down.
+    await new Promise((r) => setTimeout(r, 300));
+  } finally {
+    app.unmount();
+  }
 }

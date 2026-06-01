@@ -5,6 +5,7 @@
 // backwards compatibility with existing installs.
 import type { IndustreamConfig } from "../config.js";
 import type { SecretsBackend } from "../secrets/index.js";
+import type { DeployReporter } from "../deploy-reporter.js";
 import { loadEnvFile } from "../swarm-repo.js";
 import { SwarmRuntime } from "./swarm.js";
 import { ComposeRuntime } from "./compose.js";
@@ -56,7 +57,13 @@ export interface StackStatus {
 export interface Runtime {
   readonly name: RuntimeName;
   readonly secrets: SecretsBackend;
-  deploy(env: Environment | undefined, opts: DeployOptions): Promise<void>;
+  // `reporter` (optional) receives structured progress for the live dashboard.
+  // When omitted, runtimes keep their plain stdout behaviour (CI / non-TTY).
+  deploy(
+    env: Environment | undefined,
+    opts: DeployOptions,
+    reporter?: DeployReporter,
+  ): Promise<void>;
   down(env: Environment): Promise<void>;
   status(): Promise<StackStatus>;
   logs(service: string | undefined, opts: LogsOptions): Promise<void>;
