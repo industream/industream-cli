@@ -21,6 +21,7 @@ import { join, resolve } from "node:path";
 import type { IndustreamConfig } from "../config.js";
 import { ComposeSecrets } from "../secrets/compose.js";
 import type { SecretsBackend } from "../secrets/index.js";
+import type { DeployReporter, ServiceHealth } from "../deploy-reporter.js";
 import { getDeployFlags } from "../stack-filter.js";
 import { getRegistryForPlan } from "../registry-login.js";
 import type { Plan } from "../modules.js";
@@ -66,6 +67,7 @@ export class ComposeRuntime implements Runtime {
   async deploy(
     environment: Environment,
     options: DeployOptions = {},
+    reporter?: DeployReporter,
   ): Promise<void> {
     assertNotProduction(options);
 
@@ -73,11 +75,6 @@ export class ComposeRuntime implements Runtime {
     const scriptsDir = await getComposeScriptsDir(this.config);
     const script = await requireScript(scriptsDir, "fm-instance.sh");
 
-    // Resolve the plan and the matching registry so `fm-instance.sh` pulls
-    // from the right Harbor. Community → public Harbor (anonymous pulls);
-    // every paid plan → premium Harbor (authenticated pulls handled by the
-    // bash script via `docker login`, which we do not do from TS here — the
-    // compose flow assumes the user is already logged in when needed).
     const platformDir = resolvePlatformDir(this.config.platformDir);
     const deployFlags = await getDeployFlags(platformDir);
     const plan = deployFlags.plan as Plan;
@@ -87,17 +84,72 @@ export class ComposeRuntime implements Runtime {
     if (options.withWorkers) args.push("--workers");
     if (options.withUimaker) args.push("--uimaker");
 
-    await execa(script, args, {
-      cwd: scriptsDir,
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        DOCKER_REGISTRY: registry,
-      },
-    });
+    const childEnv = { ...process.env, DOCKER_REGISTRY: registry };
+    const projectName = composeProjectName(instance);
 
-    const configHubUrl = await resolveConfigHubUrl(this.config, instance);
-    await waitForConfigHubReady(configHubUrl);
+    if (!reporter) {
+      await execa(script, args, { cwd: scriptsDir, stdio: "inherit", env: childEnv });
+      const configHubUrl = await resolveConfigHubUrl(this.config, instance);
+      await waitForConfigHubReady(configHubUrl);
+      return;
+    }
+
+    reporter.setSteps([
+      { id: "up", label: `fm up ${instance}`, status: "pending" },
+      { id: "ready", label: "Wait for ConfigHub", status: "pending" },
+    ]);
+
+    reporter.step("up", "running");
+    const child = execa(script, args, { cwd: scriptsDir, env: childEnv });
+    const pump = (b: Buffer) =>
+      b.toString().split("\n").forEach((l) => { if (l.trim()) reporter.log(l); });
+    child.stdout?.on("data", pump);
+    child.stderr?.on("data", pump);
+
+    let polling = true;
+    void (async () => {
+      while (polling) {
+        try {
+          reporter.setServices((await listComposeServices(projectName)).map(toServiceHealth));
+        } catch {
+          // project not up yet
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    })();
+
+    let upOk = true;
+    try {
+      await child;
+    } catch (err) {
+      upOk = false;
+      reporter.log(err instanceof Error ? err.message : String(err));
+    }
+    reporter.step("up", upOk ? "done" : "failed");
+
+    if (!upOk) {
+      polling = false;
+      reporter.setResult({ ok: false, summary: "fm up failed — see log", urls: [] });
+      return;
+    }
+
+    reporter.step("ready", "running");
+    let ready = true;
+    try {
+      await waitForConfigHubReady(await resolveConfigHubUrl(this.config, instance));
+    } catch {
+      ready = false;
+    }
+    reporter.step("ready", ready ? "done" : "failed");
+
+    polling = false;
+    const services = (await listComposeServices(projectName)).map(toServiceHealth);
+    reporter.setServices(services);
+    reporter.setResult({
+      ok: ready && services.every((s) => s.converged),
+      summary: `${instance} deployed via compose`,
+      urls: [{ label: "Hub", url: `https://hub.${instance}.flowmaker.localhost` }],
+    });
   }
 
   /**
@@ -199,6 +251,16 @@ function requireEnvironment(environment: Environment | undefined): string {
     );
   }
   return environment.trim();
+}
+
+function toServiceHealth(s: ServiceStatus): ServiceHealth {
+  if (s.replicas.includes("/")) {
+    const [r = "0", t = "0"] = s.replicas.split("/");
+    const ready = parseInt(r, 10) || 0;
+    const total = parseInt(t, 10) || 0;
+    return { name: s.name, ready, total, converged: total > 0 && ready === total };
+  }
+  return { name: s.name, ready: s.isRunning ? 1 : 0, total: 1, converged: s.isRunning };
 }
 
 function composeProjectName(instance: string): string {

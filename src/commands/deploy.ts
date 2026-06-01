@@ -15,10 +15,9 @@ export async function runDeploy(
   const runtime = await getRuntime(config);
 
   // Live 4-pane dashboard when we have a TTY and an explicit environment
-  // (no interactive env prompt while Ink owns the screen). Swarm emits
-  // progress today; other cases use the plain stdout path.
-  const useDashboard =
-    Boolean(environment) && Boolean(process.stdout.isTTY) && runtime.name === "swarm";
+  // (no interactive env prompt while Ink owns the screen). Both swarm and
+  // compose runtimes emit progress; CI / non-TTY use the plain stdout path.
+  const useDashboard = Boolean(environment) && Boolean(process.stdout.isTTY);
 
   if (!useDashboard) {
     await runtime.deploy(environment, options ?? {});
