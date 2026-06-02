@@ -16,7 +16,7 @@
 //   • `logs()` routes through `docker compose -p fm-<env> logs`; with no
 //     service argument it prints the list of services (parity with Swarm UX).
 import { execa } from "execa";
-import { access, readdir, readFile, stat } from "node:fs/promises";
+import { access, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { IndustreamConfig } from "../config.js";
 import { ComposeSecrets } from "../secrets/compose.js";
@@ -79,6 +79,11 @@ export class ComposeRuntime implements Runtime {
     const deployFlags = await getDeployFlags(platformDir);
     const plan = deployFlags.plan as Plan;
     const registry = getRegistryForPlan(plan);
+
+    // A fresh install has no instance yet — `fm up` would fail with
+    // "Instance not found". Create it on first deploy so the flow is
+    // install → deploy with no manual `fm create` in between.
+    await this.ensureInstance(scriptsDir, script, instance, plan, reporter);
 
     const args: string[] = ["up", instance];
     if (options.withWorkers) args.push("--workers");
@@ -150,6 +155,45 @@ export class ComposeRuntime implements Runtime {
       summary: `${instance} deployed via compose`,
       urls: [{ label: "Hub", url: `https://hub.${instance}.flowmaker.localhost` }],
     });
+  }
+
+  /**
+   * Ensure `instances/<instance>/` exists, creating it non-interactively on
+   * first deploy (the prompts fall back to their defaults when stdin is
+   * closed). Defaults produce a Community instance; an enterprise plan flips
+   * WITH_EE=true so the EE overlay (Logto) comes up too.
+   */
+  private async ensureInstance(
+    scriptsDir: string,
+    script: string,
+    instance: string,
+    plan: Plan,
+    reporter?: DeployReporter,
+  ): Promise<void> {
+    const instanceEnv = resolve(
+      scriptsDir,
+      "../../../industream-flowmaker/deployment/instances",
+      instance,
+      ".env",
+    );
+    if (await pathExists(instanceEnv)) return;
+
+    reporter?.log(`Instance '${instance}' not found — creating it…`);
+    // stdin closed (`input: ""`) → fm-instance.sh's prompts take their
+    // defaults (network, domain, https, WITH_EE=false).
+    await execa(script, ["create", instance], { cwd: scriptsDir, input: "" });
+
+    if (plan === "enterprise") {
+      // Promote the freshly-created Community instance to EE. `fm up` then
+      // appends docker-compose.ee.yml and regenerates EE secrets idempotently.
+      const env = await readFile(instanceEnv, "utf8");
+      await writeFile(
+        instanceEnv,
+        env.replace(/^WITH_EE=false$/m, "WITH_EE=true"),
+        "utf8",
+      );
+      reporter?.log(`Enabled Enterprise mode for '${instance}'.`);
+    }
   }
 
   /**

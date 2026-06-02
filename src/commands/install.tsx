@@ -345,15 +345,27 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         if (runtimeName === "compose") {
           setStatusMessage("Starting Caddy reverse proxy...");
           setProgressLine("");
-          await runScript(
-            join(resolved, "scripts/compose/fm-caddy.sh"),
-            ["rebuild"],
-            resolved,
-            (line) => setProgressLine(line),
-          ).catch(() => {
-            // non-fatal: Caddy can also be (re)started on first deploy
-          });
-          setModulesSummary("Run 'industream deploy --env <instance>' to bring up an instance.");
+          // Non-fatal: Caddy is also (re)started on first deploy. But don't
+          // swallow the error silently — a failed start used to leave the
+          // user with no proxy and no message.
+          let caddyOk = true;
+          try {
+            await runScript(
+              join(resolved, "scripts/compose/fm-caddy.sh"),
+              ["rebuild"],
+              resolved,
+              (line) => setProgressLine(line),
+            );
+          } catch (error) {
+            caddyOk = false;
+            setProgressLine(error instanceof Error ? error.message : String(error));
+          }
+          setModulesSummary(
+            caddyOk
+              ? "Run 'industream deploy --env <instance>' to bring up an instance."
+              : "⚠ Caddy did not start (it will be retried on first deploy). " +
+                  "Check 'docker ps', then run 'industream deploy --env <instance>'.",
+          );
           setStep("done");
           return;
         }
