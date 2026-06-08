@@ -331,6 +331,14 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           "DOCKER_REGISTRY",
           dockerRegistry,
         );
+        // v2: persist the edition so the unified `industream deploy` path
+        // (lib/unified-deploy.ts) assembles the right CE/EE overlay. EE is
+        // driven by entitlements — any non-community plan ⇒ ee.
+        await updateEnvValue(
+          platformDirectory,
+          "EDITION",
+          plan === "community" ? "ce" : "ee",
+        );
         console.log(
           `  Configured registries: community=${COMMUNITY_REGISTRY}, enterprise=${ENTERPRISE_REGISTRY}`,
         );
