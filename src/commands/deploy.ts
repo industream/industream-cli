@@ -12,9 +12,17 @@ import {
 
 export type Environment = "prod" | "dev" | "staging";
 
+/** Optional CLI overrides for the unified deploy path (flag > .env > default). */
+export interface DeployCliOverrides {
+  runtime?: string;
+  edition?: string;
+  bundle?: string;
+  groups?: string;
+}
+
 export async function runDeploy(
   environment?: string,
-  options?: DeployOptions,
+  options?: DeployOptions & DeployCliOverrides,
 ): Promise<void> {
   const config = await loadConfig();
 
@@ -23,7 +31,12 @@ export async function runDeploy(
   // the fallback for installs not yet migrated.
   if (await unifiedTreeExists(config.platformDir)) {
     const env = environment ?? config.defaultEnvironment;
-    const params = await resolveParamsFromEnv(config.platformDir, env);
+    const params = await resolveParamsFromEnv(config.platformDir, env, {
+      runtime: options?.runtime === "compose" ? "compose" : options?.runtime === "swarm" ? "swarm" : undefined,
+      edition: options?.edition === "ee" ? "ee" : options?.edition === "ce" ? "ce" : undefined,
+      bundle: options?.bundle,
+      groups: options?.groups,
+    });
     await runUnifiedDeploy(config.platformDir, params);
     return;
   }

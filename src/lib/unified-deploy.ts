@@ -54,13 +54,23 @@ export function buildDeployArgs(params: UnifiedDeployParams): string[] {
   return args;
 }
 
+/** CLI flags that override the platform `.env` values (flag wins when set). */
+export interface DeployOverrides {
+  runtime?: RuntimeName;
+  edition?: Edition;
+  bundle?: string;
+  groups?: string;
+}
+
 /**
- * Resolve {runtime, edition, bundle} from the platform `.env` (the install lock).
- * RUNTIME/EDITION default to swarm/ce; BUNDLE is optional (deploy.sh auto-selects).
+ * Resolve {runtime, edition, bundle, groups} for a deploy. Precedence:
+ * CLI override > platform `.env` (RUNTIME/EDITION/BUNDLE) > defaults (swarm/ce).
+ * BUNDLE stays optional (deploy.sh auto-selects the only bundle when omitted).
  */
 export async function resolveParamsFromEnv(
   platformDir: string,
   env: string,
+  overrides: DeployOverrides = {},
 ): Promise<UnifiedDeployParams> {
   let vars: Record<string, string> = {};
   try {
@@ -68,10 +78,13 @@ export async function resolveParamsFromEnv(
   } catch {
     // fresh install / no .env yet — keep defaults
   }
-  const runtime: RuntimeName = vars.RUNTIME?.trim().toLowerCase() === "compose" ? "compose" : "swarm";
-  const edition: Edition = vars.EDITION?.trim().toLowerCase() === "ee" ? "ee" : "ce";
-  const bundle = vars.BUNDLE?.trim() || undefined;
-  return { runtime, edition, env, bundle };
+  const runtime: RuntimeName =
+    overrides.runtime ?? (vars.RUNTIME?.trim().toLowerCase() === "compose" ? "compose" : "swarm");
+  const edition: Edition =
+    overrides.edition ?? (vars.EDITION?.trim().toLowerCase() === "ee" ? "ee" : "ce");
+  const bundle = overrides.bundle ?? (vars.BUNDLE?.trim() || undefined);
+  const groups = overrides.groups || undefined;
+  return { runtime, edition, env, bundle, groups };
 }
 
 /** Run the unified assembler for the given params (plain stdio passthrough). */

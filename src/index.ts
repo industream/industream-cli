@@ -57,6 +57,10 @@ program
   .command("deploy")
   .description("Deploy an environment")
   .option("--env <environment>", "Environment to deploy (prod, dev, staging, or compose instance name)")
+  .option("--runtime <runtime>", "Unified path: override runtime (swarm|compose) — default from .env")
+  .option("--edition <edition>", "Unified path: override edition (ce|ee) — default from .env")
+  .option("--bundle <version>", "Unified path: release bundle version (auto-selected if only one)")
+  .option("--groups <groups>", "Unified path: group footprint, e.g. \"core data monitoring\"")
   .option("--with-demo", "Include demo simulators (Swarm)")
   .option("--with-workers", "Bring up workers alongside core services (Compose)")
   .option("--with-uimaker", "Bring up UIMaker alongside core services (Compose)")
@@ -67,6 +71,10 @@ program
   .option("-y, --yes", "Skip interactive prompts")
   .action((options) => {
     runDeploy(options.env, {
+      runtime: options.runtime,
+      edition: options.edition,
+      bundle: options.bundle,
+      groups: options.groups,
       withDemo: options.withDemo,
       withWorkers: options.withWorkers,
       withUimaker: options.withUimaker,
