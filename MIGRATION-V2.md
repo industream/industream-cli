@@ -35,8 +35,9 @@ runtime behaviour: `industream-stack/unified/RESUME.md` (T7) + branch
 ## Phases
 | Phase | Scope | State |
 |---|---|---|
-| **P1** | `industream doctor` — preflight (ask runtime/edition/license → check deps → provision) | **in progress** |
-| P2 | retarget `deploy`/`install` → call `unified/scripts/deploy.sh` (bundle+groups), drop `deploy-swarm.sh` path | todo |
+| **P1** | `industream doctor` — preflight (ask runtime/edition/license → check deps → provision) | **done** |
+| **P2** | retarget `deploy` → `unified/scripts/deploy.sh` (bundle+groups) via `lib/unified-deploy.ts`, legacy fallback kept | **done (deploy)** — `install` retarget = P2b |
+| P2b | retarget `install` (write RUNTIME/EDITION/BUNDLE into `.env`, run unified deploy, drop `generate-uifusion-config.sh`) | todo |
 | P3 | rewrite `modules.json` → group/service map of the unified tree (base/overlays), rename `uifusion*`→`industream-hub-*` | todo |
 | P4 | `lib/runtimes/{swarm,compose}.ts` → thin wrappers over `deploy.sh` (kill `generate-uifusion-config.sh`) | todo |
 | P5 | secrets backends aligned (swarm external `${ENV}_*` / compose file secrets under `SECRETS_DIR`) | todo |
