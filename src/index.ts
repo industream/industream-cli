@@ -87,16 +87,18 @@ program
   .command("down")
   .description("Bring an environment down (data preserved)")
   .option("--env <environment>", "Environment to stop (prod, dev, staging)")
+  .option("--runtime <runtime>", "Override runtime (swarm|compose) — default from .env")
   .action((options) => {
-    runDown(options.env);
+    runDown(options.env, options.runtime);
   });
 
 // Backward-compat: keep `stop` as alias for `down`
 program
   .command("stop", { hidden: true })
   .option("--env <environment>")
+  .option("--runtime <runtime>")
   .action((options) => {
-    runStop(options.env);
+    runStop(options.env, options.runtime);
   });
 
 program
@@ -104,8 +106,15 @@ program
   .description("View service logs")
   .option("-f, --follow", "Follow log output")
   .option("--tail <lines>", "Number of lines to show", "100")
+  .option("--env <environment>", "Environment whose logs to view (unified path)")
+  .option("--runtime <runtime>", "Override runtime (swarm|compose) — default from .env")
   .action((service, options) => {
-    runLogs(service, { follow: options.follow, tail: Number(options.tail) });
+    runLogs(service, {
+      follow: options.follow,
+      tail: Number(options.tail),
+      env: options.env,
+      runtime: options.runtime,
+    });
   });
 
 program
