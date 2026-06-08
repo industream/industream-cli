@@ -144,7 +144,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
       .then((cache) => {
         if (cache?.plan) {
           const planLabel = cache.plan.charAt(0).toUpperCase() + cache.plan.slice(1);
-          setLicenseLabel(cache.valid ? `${planLabel} (active)` : `${planLabel} (invalid)`);
+          setLicenseLabel(cache.response.meta.valid ? `${planLabel} (active)` : `${planLabel} (invalid)`);
         }
       })
       .catch(() => {
