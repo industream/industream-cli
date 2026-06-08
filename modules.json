@@ -13,22 +13,22 @@
     },
     {
       "id": "ui-fusion",
-      "name": "UI Fusion",
+      "name": "Industream Hub (frontend)",
       "category": "Platform",
       "license": "bsl",
       "status": "ready",
-      "serviceName": "uifusion",
+      "serviceName": "industream-hub-frontend",
       "stackFile": "docker-stack.yml",
       "imagePattern": "uifusion/ui",
       "subcategory": "Tools"
     },
     {
       "id": "uifusion-api",
-      "name": "UI Fusion API",
+      "name": "Industream Hub (backend)",
       "category": "Platform",
       "license": "bsl",
       "status": "ready",
-      "serviceName": "uifusion-api",
+      "serviceName": "industream-hub-backend",
       "stackFile": "docker-stack.yml",
       "imagePattern": "uifusion/api",
       "subcategory": "Tools"

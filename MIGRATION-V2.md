@@ -39,7 +39,8 @@ runtime behaviour: `industream-stack/unified/RESUME.md` (T7) + branch
 | **P2** | retarget `deploy` → `unified/scripts/deploy.sh` (bundle+groups) via `lib/unified-deploy.ts`, legacy fallback kept | **done (deploy)** — `install` retarget = P2b |
 | P2b | `install` now persists `EDITION` (from license plan) into `.env` so the unified `deploy` picks the right CE/EE overlay | **partial** |
 | P2b-full | route `install`'s own deploy step through `deploy.sh` (generate `unified/.env.<env>`, provision via doctor, drop `generate-uifusion-config.sh`/`deploy-swarm.sh`) — needs a real VM to validate | todo |
-| P3 | rewrite `modules.json` → group/service map of the unified tree (base/overlays), rename `uifusion*`→`industream-hub-*` | todo |
+| **P3** | rename `uifusion`/`uifusion-api` serviceNames → `industream-hub-frontend`/`-backend` (T1) in modules.json + dev demo | **done (rename)** |
+| P3b | remodel modules.json onto unified groups (stackFile→group; worker imagePatterns `flow-box-*` long → short CE names) + adapt stack-filter/status | todo |
 | P4 | `lib/runtimes/{swarm,compose}.ts` → thin wrappers over `deploy.sh` (kill `generate-uifusion-config.sh`) | todo |
 | P5 | secrets backends aligned (swarm external `${ENV}_*` / compose file secrets under `SECRETS_DIR`) | todo |
 | P6 | tests + SEA build green; retire legacy code paths | todo |
