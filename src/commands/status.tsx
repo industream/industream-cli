@@ -3,15 +3,37 @@ import React, { useState, useEffect } from "react";
 import { render, Text, Box, useInput, useApp } from "ink";
 import { Banner } from "../components/Banner.js";
 import { ServiceTable } from "../components/ServiceTable.js";
-import { getSwarmServices, isSwarmActive } from "../lib/docker.js";
+import {
+  getSwarmServices,
+  getComposeServices,
+  isSwarmActive,
+  type SwarmService,
+} from "../lib/docker.js";
 import { loadConfig } from "../lib/config.js";
 import { loadModuleRegistry, type Module } from "../lib/modules.js";
 import { getLatestVersions, isLatest } from "../lib/release-tracker.js";
 import { validateLicenseWithKeygen, type CachedLicense } from "../lib/keygen.js";
+import { unifiedTreeExists } from "../lib/unified-deploy.js";
+import { resolveRuntime } from "../lib/unified-ops.js";
 
-function StatusDashboard(): React.ReactElement {
+interface StatusProps {
+  env: string;
+  useCompose: boolean;
+}
+
+// Fetch the service list for the active topology: compose project (<env>) on the
+// unified compose runtime, else the swarm stack (industream-<env>).
+async function fetchServices(env: string, useCompose: boolean): Promise<SwarmService[]> {
+  if (useCompose) return getComposeServices(env);
+  if (!(await isSwarmActive())) {
+    throw new Error("Docker Swarm is not active. Run: docker swarm init");
+  }
+  return getSwarmServices(`industream-${env}`);
+}
+
+function StatusDashboard({ env, useCompose }: StatusProps): React.ReactElement {
   const { exit } = useApp();
-  const [services, setServices] = useState<Awaited<ReturnType<typeof getSwarmServices>>>([]);
+  const [services, setServices] = useState<SwarmService[]>([]);
   const [modules, setModules] = useState<Module[]>([]);
   const [licenseCache, setLicenseCache] = useState<CachedLicense | null>(null);
   const [licenseOnline, setLicenseOnline] = useState(false);
@@ -23,16 +45,8 @@ function StatusDashboard(): React.ReactElement {
   useEffect(() => {
     async function fetchStatus() {
       try {
-        const config = await loadConfig();
-        const stackName = `industream-${config.defaultEnvironment}`;
-        const active = await isSwarmActive();
-        if (!active) {
-          setError("Docker Swarm is not active. Run: docker swarm init");
-          setLoading(false);
-          return;
-        }
-        const [result, registry, latestVersions, licenseResult] = await Promise.all([
-          getSwarmServices(stackName),
+        const result = await fetchServices(env, useCompose);
+        const [registry, latestVersions, licenseResult] = await Promise.all([
           loadModuleRegistry(),
           getLatestVersions(),
           validateLicenseWithKeygen(),
@@ -43,10 +57,7 @@ function StatusDashboard(): React.ReactElement {
             const latest = latestVersions.get(service.imageName);
             if (latest) {
               service.latestVersion = latest;
-              if (
-                service.version !== "latest" &&
-                !isLatest(service.version, latest)
-              ) {
+              if (service.version !== "latest" && !isLatest(service.version, latest)) {
                 updateCount++;
               }
             }
@@ -65,7 +76,7 @@ function StatusDashboard(): React.ReactElement {
       }
     }
     fetchStatus();
-  }, []);
+  }, [env, useCompose]);
 
   useInput((input) => {
     if (input === "q") exit();
@@ -87,9 +98,7 @@ function StatusDashboard(): React.ReactElement {
   const daysRemaining = expiry
     ? Math.floor((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : undefined;
-  const planColor =
-    plan === "community" ? "gray" : licenseValid ? "green" : "red";
-  const entitlementCount = licenseCache?.entitlements.length ?? 0;
+  const planColor = plan === "community" ? "gray" : licenseValid ? "green" : "red";
 
   return (
     <Box flexDirection="column">
@@ -103,20 +112,14 @@ function StatusDashboard(): React.ReactElement {
           <Text dimColor>
             {plan === "community" ? " · BSL 1.1 (free)" : " · Commercial"}
           </Text>
-          {customer && customer !== "Community" && (
-            <Text dimColor> · {customer}</Text>
-          )}
+          {customer && customer !== "Community" && <Text dimColor> · {customer}</Text>}
           {daysRemaining !== undefined && Number.isFinite(daysRemaining) && plan !== "community" && (
             <Text dimColor> · {daysRemaining} day{daysRemaining > 1 ? "s" : ""} remaining</Text>
           )}
-          {!licenseValid && plan !== "community" && (
-            <Text color="red"> · INVALID</Text>
-          )}
-          {!licenseOnline && plan !== "community" && (
-            <Text color="yellow"> · OFFLINE</Text>
-          )}
+          {!licenseValid && plan !== "community" && <Text color="red"> · INVALID</Text>}
+          {!licenseOnline && plan !== "community" && <Text color="yellow"> · OFFLINE</Text>}
         </Box>
-        {updatesAvailable > 0 && (
+        {updatesAvailable > 0 ? (
           <Box>
             <Text bold>Updates: </Text>
             <Text color="yellow" bold>
@@ -124,8 +127,7 @@ function StatusDashboard(): React.ReactElement {
             </Text>
             <Text dimColor> service{updatesAvailable > 1 ? "s" : ""} have a new version available</Text>
           </Box>
-        )}
-        {updatesAvailable === 0 && (
+        ) : (
           <Box>
             <Text bold>Updates: </Text>
             <Text color="green">All services up to date</Text>
@@ -145,25 +147,13 @@ function StatusDashboard(): React.ReactElement {
   );
 }
 
-async function runFallbackStatus(): Promise<void> {
+async function runFallbackStatus(env: string, useCompose: boolean): Promise<void> {
   console.log("");
   console.log("  \x1b[1mINDUSTREAM PLATFORM - STATUS\x1b[0m");
   console.log("");
-
   try {
-    const config = await loadConfig();
-    const stackName = `industream-${config.defaultEnvironment}`;
-    const active = await isSwarmActive();
-
-    if (!active) {
-      console.log("  \x1b[31mDocker Swarm is not active. Run: docker swarm init\x1b[0m");
-      console.log("");
-      return;
-    }
-
-    const services = await getSwarmServices(stackName);
+    const services = await fetchServices(env, useCompose);
     const running = services.filter((s) => s.isRunning).length;
-
     console.log("  \x1b[1mServices\x1b[0m");
     for (const service of services) {
       const statusIcon = service.isRunning ? "\x1b[32m✓\x1b[0m" : "\x1b[31m✗\x1b[0m";
@@ -171,7 +161,6 @@ async function runFallbackStatus(): Promise<void> {
         `    ${statusIcon} ${service.name.padEnd(30)} ${service.replicas.padEnd(10)} ${service.version}`,
       );
     }
-
     console.log("");
     console.log(`  \x1b[2m${running}/${services.length} services running\x1b[0m`);
     console.log("");
@@ -182,12 +171,17 @@ async function runFallbackStatus(): Promise<void> {
   }
 }
 
-export function runStatus(): void {
-  // Check if raw mode is supported (TTY with interactive terminal)
+export async function runStatus(options?: { env?: string; runtime?: string }): Promise<void> {
+  const config = await loadConfig();
+  const env = options?.env ?? config.defaultEnvironment;
+  let useCompose = false;
+  if (await unifiedTreeExists(config.platformDir)) {
+    useCompose = (await resolveRuntime(config.platformDir, options?.runtime)) === "compose";
+  }
+
   if (process.stdin.isTTY && typeof process.stdin.setRawMode === "function") {
-    render(<StatusDashboard />);
+    render(<StatusDashboard env={env} useCompose={useCompose} />);
   } else {
-    // Fallback to simple console output (works in non-interactive environments)
-    runFallbackStatus();
+    await runFallbackStatus(env, useCompose);
   }
 }

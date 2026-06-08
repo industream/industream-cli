@@ -49,6 +49,15 @@ vi.mock("ink", async (importOriginal) => {
   };
 });
 
+// v2 routing deps — no unified tree in tests ⇒ legacy swarm path. Mocked so the
+// real fs.stat in unifiedTreeExists doesn't perturb the deterministic timing.
+vi.mock("../../lib/unified-deploy.js", () => ({
+  unifiedTreeExists: vi.fn(async () => false),
+}));
+vi.mock("../../lib/unified-ops.js", () => ({
+  resolveRuntime: vi.fn(async () => "swarm"),
+}));
+
 import { loadConfig } from "../../lib/config.js";
 import { isSwarmActive, getSwarmServices } from "../../lib/docker.js";
 import { runStatus } from "../status.js";
@@ -57,13 +66,10 @@ const mockedLoadConfig = vi.mocked(loadConfig);
 const mockedIsSwarmActive = vi.mocked(isSwarmActive);
 const mockedGetSwarmServices = vi.mocked(getSwarmServices);
 
-/** Flush queued microtasks so runFallbackStatus()'s async body completes. */
+/** Flush queued microtasks so runStatus()'s async body completes. */
 async function flushAsync(): Promise<void> {
-  // Two ticks — one for each `await` inside runFallbackStatus.
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
+  // One tick per await across runStatus → unifiedTreeExists → runFallbackStatus.
+  for (let i = 0; i < 8; i++) await Promise.resolve();
 }
 
 describe("runStatus (fallback, non-TTY) — docker call snapshots", () => {

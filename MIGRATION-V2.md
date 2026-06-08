@@ -42,7 +42,7 @@ runtime behaviour: `industream-stack/unified/RESUME.md` (T7) + branch
 | **P3** | rename `uifusion`/`uifusion-api` serviceNames → `industream-hub-frontend`/`-backend` (T1) in modules.json + dev demo | **done (rename)** |
 | P3b | remodel modules.json onto unified groups (stackFile→group; worker imagePatterns `flow-box-*` long → short CE names) + adapt stack-filter/status | todo |
 | **P4** | `down` + `logs` retargeted to the unified deployment via `lib/unified-ops.ts` (stack rm / compose down · service|compose logs), legacy fallback kept | **done (down+logs)** — validated live |
-| P4b | `status` dashboard against the unified deployment (compose ps / stack services → StackStatus) | todo |
+| **P4b** | `status` against the unified deployment — `getComposeServices` (compose ps → SwarmService) + runtime/env routing, swarm gate skipped for compose | **done** — validated live (uni-ce 42 svc) |
 | P5 | secrets backends aligned (swarm external `${ENV}_*` / compose file secrets under `SECRETS_DIR`) | todo |
 | P6 | tests + SEA build green; retire legacy code paths | todo |
 

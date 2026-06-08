@@ -49,8 +49,10 @@ program
 program
   .command("status")
   .description("Show platform status dashboard")
-  .action(() => {
-    runStatus();
+  .option("--env <environment>", "Environment to inspect (unified path)")
+  .option("--runtime <runtime>", "Override runtime (swarm|compose) — default from .env")
+  .action((options) => {
+    runStatus({ env: options.env, runtime: options.runtime });
   });
 
 program
