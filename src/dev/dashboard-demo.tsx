@@ -16,7 +16,7 @@ async function script(): Promise<void> {
     { id: "stack", label: "Deploy stack", status: "pending" },
     { id: "converge", label: "Wait for services", status: "pending" },
   ]);
-  const names = ["postgres", "uifusion", "uifusion-api", "grafana", "databridge", "prometheus"];
+  const names = ["postgres", "industream-hub-frontend", "industream-hub-backend", "grafana", "databridge", "prometheus"];
 
   reporter.step("certs", "running");
   for (const l of ["openssl req -x509 …", "certificate written"]) { reporter.log(l); await sleep(250); }

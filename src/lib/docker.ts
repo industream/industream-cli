@@ -80,6 +80,52 @@ export function parseImageVersion(image: string): string {
   return parts.length > 1 ? parts[parts.length - 1] : "latest";
 }
 
+// Parse `docker compose ps --format json` (NDJSON or a JSON array) into the
+// same SwarmService shape the dashboard consumes. Compose has no replicas, so
+// State drives isRunning and a synthetic "1/1"/"0/1".
+export function parseComposePs(output: string): SwarmService[] {
+  const text = output.trim();
+  if (!text) return [];
+  let rows: Array<Record<string, unknown>>;
+  try {
+    const parsed = JSON.parse(text);
+    rows = Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    rows = text
+      .split("\n")
+      .filter((line) => line.trim().length > 0)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+  }
+  return rows.map((row) => {
+    const image = String(row.Image ?? "");
+    const running = String(row.State ?? "").toLowerCase() === "running";
+    return {
+      name: String(row.Service ?? row.Name ?? ""),
+      fullName: String(row.Name ?? ""),
+      replicas: running ? "1/1" : "0/1",
+      image,
+      imageName: parseImageName(image),
+      version: parseImageVersion(image),
+      isRunning: running,
+      uptime: row.Status ? String(row.Status) : undefined,
+    };
+  });
+}
+
+// Compose equivalent of getSwarmServices, keyed by the project name (= env).
+export async function getComposeServices(project: string): Promise<SwarmService[]> {
+  const { stdout } = await execa(DOCKER, [
+    "compose",
+    "-p",
+    project,
+    "ps",
+    "--all",
+    "--format",
+    "json",
+  ]);
+  return parseComposePs(stdout);
+}
+
 export async function getSwarmServices(
   stackName: string,
 ): Promise<SwarmService[]> {
