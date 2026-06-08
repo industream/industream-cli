@@ -213,7 +213,7 @@
       "status": "ready",
       "serviceName": "worker-mqtt-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-mqtt-client"
+      "imagePattern": "flowmaker.boxes/mqtt-client"
     },
     {
       "id": "modbus-tcp-connector",
@@ -223,7 +223,7 @@
       "status": "ready",
       "serviceName": "worker-modbus-tcp",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-modbus-tcp"
+      "imagePattern": "flowmaker.boxes/modbus-tcp"
     },
     {
       "id": "rest-api-connector",
@@ -233,7 +233,7 @@
       "status": "ready",
       "serviceName": "worker-http-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-http"
+      "imagePattern": "flowmaker.boxes/http"
     },
     {
       "id": "opc-ua-connector",
@@ -243,7 +243,7 @@
       "status": "ready",
       "serviceName": "worker-opc-ua-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-opc-ua-client"
+      "imagePattern": "flowmaker.boxes/opc-ua-client"
     },
     {
       "id": "rtsp-connector",
@@ -253,7 +253,7 @@
       "status": "ready",
       "serviceName": "worker-rtsp-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-rtsp-client"
+      "imagePattern": "flowmaker.boxes/rtsp-client"
     },
     {
       "id": "minio-connector",
@@ -263,7 +263,7 @@
       "status": "ready",
       "serviceName": "worker-minio-sink",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-minio-sink"
+      "imagePattern": "flowmaker.boxes/minio-sink"
     },
     {
       "id": "datacatalog-core",
@@ -293,7 +293,7 @@
       "status": "ready",
       "serviceName": "worker-datacatalog-mapper",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-datacatalog-mapper"
+      "imagePattern": "flowmaker.boxes/datacatalog-mapper"
     },
     {
       "id": "worker-data-logger",
@@ -303,7 +303,7 @@
       "status": "ready",
       "serviceName": "worker-data-logger",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-data-logger"
+      "imagePattern": "flowmaker.boxes/data-logger"
     },
     {
       "id": "worker-timer",
@@ -313,7 +313,7 @@
       "status": "ready",
       "serviceName": "worker-timer",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-timer"
+      "imagePattern": "flowmaker.boxes/timer"
     },
     {
       "id": "worker-js-expression",
@@ -323,7 +323,7 @@
       "status": "ready",
       "serviceName": "worker-js-expression",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-js-expression"
+      "imagePattern": "flowmaker.boxes/js-expression"
     },
     {
       "id": "worker-postgres-client",
@@ -333,7 +333,7 @@
       "status": "ready",
       "serviceName": "worker-postgres-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-postgres-client"
+      "imagePattern": "flowmaker.boxes/postgres-client"
     },
     {
       "id": "worker-timeseries",
@@ -343,7 +343,7 @@
       "status": "ready",
       "serviceName": "worker-timeseries",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-timeseries-workers"
+      "imagePattern": "flowmaker.boxes/timeseries-workers"
     },
     {
       "id": "worker-influx-client",
@@ -353,7 +353,7 @@
       "status": "ready",
       "serviceName": "worker-influx-client-dc",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-influx-client"
+      "imagePattern": "flowmaker.boxes/influx-client"
     },
     {
       "id": "worker-notifications",
@@ -363,7 +363,7 @@
       "status": "ready",
       "serviceName": "worker-notifications",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-notification"
+      "imagePattern": "flowmaker.boxes/notification"
     },
     {
       "id": "worker-test-data-generator",
@@ -373,7 +373,7 @@
       "status": "ready",
       "serviceName": "worker-test-data-generator",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-test-data-generator"
+      "imagePattern": "flowmaker.boxes/test-data-generator"
     },
     {
       "id": "worker-conditional-validator",
@@ -383,7 +383,7 @@
       "status": "ready",
       "serviceName": "worker-conditional-validator",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-conditional-dataset-validator"
+      "imagePattern": "flowmaker.boxes/conditional-dataset-validator"
     },
     {
       "id": "worker-enqueue",
@@ -393,7 +393,7 @@
       "status": "ready",
       "serviceName": "worker-enqueue",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-enqueue"
+      "imagePattern": "flowmaker.boxes/enqueue"
     },
     {
       "id": "equation-solver",
@@ -403,7 +403,7 @@
       "status": "ready",
       "serviceName": "equation-solver",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-equation-solver"
+      "imagePattern": "flowmaker.boxes/equation-solver"
     },
     {
       "id": "worker-luminosity-box",
@@ -413,7 +413,7 @@
       "status": "ready",
       "serviceName": "worker-luminosity-box",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-luminosity-box"
+      "imagePattern": "flowmaker.boxes/luminosity-box"
     },
     {
       "id": "prometheus",
@@ -554,7 +554,7 @@
       "status": "ready",
       "serviceName": "worker-gstreamer-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-gstreamer-client",
+      "imagePattern": "flowmaker.boxes/gstreamer-client",
       "entitlement": "PRODUCT_DATACATALOG"
     },
     {
@@ -565,7 +565,7 @@
       "status": "coming-soon",
       "serviceName": "worker-audio-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-audio-client",
+      "imagePattern": "flowmaker.boxes/audio-client",
       "entitlement": "PRODUCT_DATACATALOG"
     },
     {
@@ -576,7 +576,7 @@
       "status": "ready",
       "serviceName": "worker-mssql-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-mssql-client",
+      "imagePattern": "flowmaker.boxes/mssql-client",
       "entitlement": "ADDON_DB_MSSQL"
     },
     {
@@ -587,7 +587,7 @@
       "status": "on-request",
       "serviceName": "worker-osisoft-pi-client",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/flow-box-osisoft-pi-client",
+      "imagePattern": "flowmaker.boxes/osisoft-pi-client",
       "entitlement": "ADDON_DB_OSISOFT"
     }
   ]

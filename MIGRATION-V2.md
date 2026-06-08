@@ -40,7 +40,7 @@ runtime behaviour: `industream-stack/unified/RESUME.md` (T7) + branch
 | P2b | `install` now persists `EDITION` (from license plan) into `.env` so the unified `deploy` picks the right CE/EE overlay | **partial** |
 | P2b-full | route `install`'s own deploy step through `deploy.sh` (generate `unified/.env.<env>`, provision via doctor, drop `generate-uifusion-config.sh`/`deploy-swarm.sh`) — needs a real VM to validate | todo |
 | **P3** | rename `uifusion`/`uifusion-api` serviceNames → `industream-hub-frontend`/`-backend` (T1) in modules.json + dev demo | **done (rename)** |
-| P3b | remodel modules.json onto unified groups (stackFile→group; worker imagePatterns `flow-box-*` long → short CE names) + adapt stack-filter/status | todo |
+| **P3b** | worker imagePatterns `flowmaker.boxes/flow-box-*` → short CE names (match the now-public packages). NOTE: `stackFile`/`stack-filter`/`imagePattern` have **no unified consumer** (legacy-only) → the stackFile→group remodel + stack-filter removal moved to **P6**. | **done (imagePatterns)** |
 | **P4** | `down` + `logs` retargeted to the unified deployment via `lib/unified-ops.ts` (stack rm / compose down · service|compose logs), legacy fallback kept | **done (down+logs)** — validated live |
 | **P4b** | `status` against the unified deployment — `getComposeServices` (compose ps → SwarmService) + runtime/env routing, swarm gate skipped for compose | **done** — validated live (uni-ce 42 svc) |
 | P5 | secrets backends aligned (swarm external `${ENV}_*` / compose file secrets under `SECRETS_DIR`) | todo |
