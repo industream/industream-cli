@@ -4,14 +4,43 @@
 import { loadConfig } from "../lib/config.js";
 import { getRuntime } from "../lib/runtimes/index.js";
 import type { DeployOptions } from "../lib/runtimes/index.js";
+import {
+  unifiedTreeExists,
+  resolveParamsFromEnv,
+  runUnifiedDeploy,
+} from "../lib/unified-deploy.js";
 
 export type Environment = "prod" | "dev" | "staging";
 
+/** Optional CLI overrides for the unified deploy path (flag > .env > default). */
+export interface DeployCliOverrides {
+  runtime?: string;
+  edition?: string;
+  bundle?: string;
+  groups?: string;
+}
+
 export async function runDeploy(
   environment?: string,
-  options?: DeployOptions,
+  options?: DeployOptions & DeployCliOverrides,
 ): Promise<void> {
   const config = await loadConfig();
+
+  // v2: when the install carries the unified tree, drive scripts/deploy.sh
+  // (assembler + license-aware bundle). The legacy docker-stack path below is
+  // the fallback for installs not yet migrated.
+  if (await unifiedTreeExists(config.platformDir)) {
+    const env = environment ?? config.defaultEnvironment;
+    const params = await resolveParamsFromEnv(config.platformDir, env, {
+      runtime: options?.runtime === "compose" ? "compose" : options?.runtime === "swarm" ? "swarm" : undefined,
+      edition: options?.edition === "ee" ? "ee" : options?.edition === "ce" ? "ce" : undefined,
+      bundle: options?.bundle,
+      groups: options?.groups,
+    });
+    await runUnifiedDeploy(config.platformDir, params);
+    return;
+  }
+
   const runtime = await getRuntime(config);
 
   // Live 4-pane dashboard when we have a TTY and an explicit environment

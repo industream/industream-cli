@@ -144,7 +144,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
       .then((cache) => {
         if (cache?.plan) {
           const planLabel = cache.plan.charAt(0).toUpperCase() + cache.plan.slice(1);
-          setLicenseLabel(cache.valid ? `${planLabel} (active)` : `${planLabel} (invalid)`);
+          setLicenseLabel(cache.response.meta.valid ? `${planLabel} (active)` : `${planLabel} (invalid)`);
         }
       })
       .catch(() => {
@@ -330,6 +330,14 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           platformDirectory,
           "DOCKER_REGISTRY",
           dockerRegistry,
+        );
+        // v2: persist the edition so the unified `industream deploy` path
+        // (lib/unified-deploy.ts) assembles the right CE/EE overlay. EE is
+        // driven by entitlements — any non-community plan ⇒ ee.
+        await updateEnvValue(
+          platformDirectory,
+          "EDITION",
+          plan === "community" ? "ce" : "ee",
         );
         console.log(
           `  Configured registries: community=${COMMUNITY_REGISTRY}, enterprise=${ENTERPRISE_REGISTRY}`,

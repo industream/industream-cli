@@ -6,6 +6,7 @@ import { runDown, runStop } from "./commands/stop.js";
 import { runLogs } from "./commands/logs.js";
 import { runSecrets } from "./commands/secrets.js";
 import { runInstall } from "./commands/install.js";
+import { runDoctor } from "./commands/doctor.js";
 import { runUpdate } from "./commands/update.js";
 import { runConfig } from "./commands/config.js";
 import { runLicense } from "./commands/license.js";
@@ -48,14 +49,20 @@ program
 program
   .command("status")
   .description("Show platform status dashboard")
-  .action(() => {
-    runStatus();
+  .option("--env <environment>", "Environment to inspect (unified path)")
+  .option("--runtime <runtime>", "Override runtime (swarm|compose) — default from .env")
+  .action((options) => {
+    runStatus({ env: options.env, runtime: options.runtime });
   });
 
 program
   .command("deploy")
   .description("Deploy an environment")
   .option("--env <environment>", "Environment to deploy (prod, dev, staging, or compose instance name)")
+  .option("--runtime <runtime>", "Unified path: override runtime (swarm|compose) — default from .env")
+  .option("--edition <edition>", "Unified path: override edition (ce|ee) — default from .env")
+  .option("--bundle <version>", "Unified path: release bundle version (auto-selected if only one)")
+  .option("--groups <groups>", "Unified path: group footprint, e.g. \"core data monitoring\"")
   .option("--with-demo", "Include demo simulators (Swarm)")
   .option("--with-workers", "Bring up workers alongside core services (Compose)")
   .option("--with-uimaker", "Bring up UIMaker alongside core services (Compose)")
@@ -66,6 +73,10 @@ program
   .option("-y, --yes", "Skip interactive prompts")
   .action((options) => {
     runDeploy(options.env, {
+      runtime: options.runtime,
+      edition: options.edition,
+      bundle: options.bundle,
+      groups: options.groups,
       withDemo: options.withDemo,
       withWorkers: options.withWorkers,
       withUimaker: options.withUimaker,
@@ -78,16 +89,18 @@ program
   .command("down")
   .description("Bring an environment down (data preserved)")
   .option("--env <environment>", "Environment to stop (prod, dev, staging)")
+  .option("--runtime <runtime>", "Override runtime (swarm|compose) — default from .env")
   .action((options) => {
-    runDown(options.env);
+    runDown(options.env, options.runtime);
   });
 
 // Backward-compat: keep `stop` as alias for `down`
 program
   .command("stop", { hidden: true })
   .option("--env <environment>")
+  .option("--runtime <runtime>")
   .action((options) => {
-    runStop(options.env);
+    runStop(options.env, options.runtime);
   });
 
 program
@@ -95,8 +108,15 @@ program
   .description("View service logs")
   .option("-f, --follow", "Follow log output")
   .option("--tail <lines>", "Number of lines to show", "100")
+  .option("--env <environment>", "Environment whose logs to view (unified path)")
+  .option("--runtime <runtime>", "Override runtime (swarm|compose) — default from .env")
   .action((service, options) => {
-    runLogs(service, { follow: options.follow, tail: Number(options.tail) });
+    runLogs(service, {
+      follow: options.follow,
+      tail: Number(options.tail),
+      env: options.env,
+      runtime: options.runtime,
+    });
   });
 
 program
@@ -135,6 +155,24 @@ program
   .description("View and edit platform .env configuration")
   .action(() => {
     runConfig();
+  });
+
+program
+  .command("doctor")
+  .description("Preflight: check (and with --fix provision) install prerequisites")
+  .option("--runtime <runtime>", "swarm (prod) or compose (dev)")
+  .option("--edition <edition>", "ce or ee")
+  .option("--env <environment>", "Environment name (default: prod for swarm, dev for compose)")
+  .option("--fix", "Provision the missing prerequisites")
+  .option("-y, --yes", "Auto-confirm fixes")
+  .action((options) => {
+    runDoctor({
+      runtime: options.runtime,
+      edition: options.edition,
+      env: options.env,
+      fix: options.fix,
+      yes: options.yes,
+    });
   });
 
 program
