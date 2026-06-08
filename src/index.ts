@@ -6,6 +6,7 @@ import { runDown, runStop } from "./commands/stop.js";
 import { runLogs } from "./commands/logs.js";
 import { runSecrets } from "./commands/secrets.js";
 import { runInstall } from "./commands/install.js";
+import { runDoctor } from "./commands/doctor.js";
 import { runUpdate } from "./commands/update.js";
 import { runConfig } from "./commands/config.js";
 import { runLicense } from "./commands/license.js";
@@ -135,6 +136,24 @@ program
   .description("View and edit platform .env configuration")
   .action(() => {
     runConfig();
+  });
+
+program
+  .command("doctor")
+  .description("Preflight: check (and with --fix provision) install prerequisites")
+  .option("--runtime <runtime>", "swarm (prod) or compose (dev)")
+  .option("--edition <edition>", "ce or ee")
+  .option("--env <environment>", "Environment name (default: prod for swarm, dev for compose)")
+  .option("--fix", "Provision the missing prerequisites")
+  .option("-y, --yes", "Auto-confirm fixes")
+  .action((options) => {
+    runDoctor({
+      runtime: options.runtime,
+      edition: options.edition,
+      env: options.env,
+      fix: options.fix,
+      yes: options.yes,
+    });
   });
 
 program
