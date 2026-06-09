@@ -512,7 +512,10 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
               `TZ=Europe/Berlin`, `ENV=${environment}`,
               `GRAFANA_ADMIN_USER=admin`, `GRAFANA_DB_USER=dashboard`, `GRAFANA_DB_NAME=industream`,
               `GF_APP_MODE=production`, `GF_LOG_LEVEL=info`, `GF_DATABASE_SSL_MODE=disable`,
-              `GRAFANA_DATABRIDGE_PLUGIN=`, `INFLUX_ORG=industream`, `INFLUX_BUCKET=industream`,
+              // NB: do NOT write GRAFANA_DATABRIDGE_PLUGIN here — .env.<env> loads
+              // LAST and an empty value would override the real default from
+              // versions.env (the DataBridge Grafana plugin install spec).
+              `INFLUX_ORG=industream`, `INFLUX_BUCKET=industream`,
               `POSTGRES_ADMIN_USER=postgres`, `DATACATALOG_DB_USER=datacatalog`,
             ].join("\n") + "\n",
           );
