@@ -22,7 +22,8 @@ import { loadModuleRegistry, getModulesByLicense } from "../lib/modules.js";
 import type { Module, Plan } from "../lib/modules.js";
 import { execa } from "execa";
 import { join } from "node:path";
-import { copyFile, access } from "node:fs/promises";
+import { copyFile, access, writeFile } from "node:fs/promises";
+import { unifiedTreeExists, unifiedDir } from "../lib/unified-deploy.js";
 import { createInterface } from "node:readline";
 
 type Step =
@@ -398,47 +399,82 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         );
         await new Promise((resolve) => setTimeout(resolve, 1500));
 
-        setStatusMessage("Deploying platform stack...");
-        setProgressLine("");
-        // Build deploy args — exclude premium services if community plan
-        const deployArgs = ["--env", environment];
-        const { getDeployFlags } = await import("../lib/stack-filter.js");
-        const deployFlags = await getDeployFlags(resolved);
-        if (deployFlags.excludedServices.length > 0) {
-          deployArgs.push("--exclude", deployFlags.excludedServices.join(","));
-        }
-        if (plan === "community") {
-          // Community mode: redirect image paths to the flowmaker.community
-          // public project (handled by deploy-swarm.sh --community flag)
-          deployArgs.push("--community");
-        }
-        // Skip memory check in non-interactive CLI mode (no TTY for confirmation prompt)
-        deployArgs.push("--skip-memory-check");
-        // Pass "y" to stdin for any interactive prompts (registry login, continue, etc.)
-        const deployProcess = execa(
-          join(resolved, "scripts/deploy-swarm.sh"),
-          deployArgs,
-          { cwd: resolved, stdout: "pipe", stderr: "pipe", stdin: "pipe" },
-        );
-        deployProcess.stdin?.write("y\ny\ny\ny\n");
-        deployProcess.stdin?.end();
-        deployProcess.stdout?.on("data", (data: Buffer) => {
-          const lines = data.toString().split("\n").filter((l) => l.trim().length > 0);
-          const lastLine = lines.at(-1);
-          if (lastLine) {
-            const clean = lastLine.replace(/\x1b\[[0-9;]*m/g, "").trim();
-            if (clean.length > 0) setProgressLine(clean.slice(0, 80));
+        if (await unifiedTreeExists(platformDirectory)) {
+          // ---- v2: unified deploy via scripts/deploy.sh (assembler + bundle) ----
+          const unified = unifiedDir(platformDirectory);
+          setStatusMessage("Rendering release bundle...");
+          setProgressLine("");
+          // Bundle version label is cosmetic — images resolve from versions.env;
+          // deploy.sh auto-selects the single rendered bundle.
+          await runScript(
+            join(unified, "scripts/render-bundles.sh"),
+            ["1.0.1"],
+            unified,
+            (line) => setProgressLine(line),
+          );
+          // Site env consumed by deploy.sh (.env.<env>): domain/TLS + the
+          // env-agnostic config defaults the base/*.yml expect.
+          const hubOrigin = `https://${domain}`;
+          await writeFile(
+            join(unified, `.env.${environment}`),
+            [
+              `INDUSTREAM_DOMAIN=${domain}`, `DOMAIN=${domain}`,
+              `INDUSTREAM_HUB_ORIGIN=${hubOrigin}`, `TLS_MODE=${tlsMode}`,
+              `TZ=Europe/Berlin`, `ENV=${environment}`,
+              `GRAFANA_ADMIN_USER=admin`, `GRAFANA_DB_USER=dashboard`, `GRAFANA_DB_NAME=industream`,
+              `GF_APP_MODE=production`, `GF_LOG_LEVEL=info`, `GF_DATABASE_SSL_MODE=disable`,
+              `GRAFANA_DATABRIDGE_PLUGIN=`, `INFLUX_ORG=industream`, `INFLUX_BUCKET=industream`,
+              `POSTGRES_ADMIN_USER=postgres`, `DATACATALOG_DB_USER=datacatalog`,
+            ].join("\n") + "\n",
+          );
+          setStatusMessage("Deploying platform stack (unified deploy.sh)...");
+          setProgressLine("");
+          await runScript(
+            join(unified, "scripts/deploy.sh"),
+            ["--runtime", "swarm", "--edition", plan === "community" ? "ce" : "ee",
+             "--env", environment, "--stack", `industream-${environment}`],
+            unified,
+            (line) => setProgressLine(line),
+          );
+        } else {
+          // ---- legacy docker-stack path (installs not yet on the unified tree) ----
+          setStatusMessage("Deploying platform stack...");
+          setProgressLine("");
+          const deployArgs = ["--env", environment];
+          const { getDeployFlags } = await import("../lib/stack-filter.js");
+          const deployFlags = await getDeployFlags(resolved);
+          if (deployFlags.excludedServices.length > 0) {
+            deployArgs.push("--exclude", deployFlags.excludedServices.join(","));
           }
-        });
-        deployProcess.stderr?.on("data", (data: Buffer) => {
-          const lines = data.toString().split("\n").filter((l) => l.trim().length > 0);
-          const lastLine = lines.at(-1);
-          if (lastLine) {
-            const clean = lastLine.replace(/\x1b\[[0-9;]*m/g, "").trim();
-            if (clean.length > 0 && !clean.startsWith("WARNING")) setProgressLine(clean.slice(0, 80));
+          if (plan === "community") {
+            deployArgs.push("--community");
           }
-        });
-        await deployProcess;
+          deployArgs.push("--skip-memory-check");
+          const deployProcess = execa(
+            join(resolved, "scripts/deploy-swarm.sh"),
+            deployArgs,
+            { cwd: resolved, stdout: "pipe", stderr: "pipe", stdin: "pipe" },
+          );
+          deployProcess.stdin?.write("y\ny\ny\ny\n");
+          deployProcess.stdin?.end();
+          deployProcess.stdout?.on("data", (data: Buffer) => {
+            const lines = data.toString().split("\n").filter((l) => l.trim().length > 0);
+            const lastLine = lines.at(-1);
+            if (lastLine) {
+              const clean = lastLine.replace(/\x1b\[[0-9;]*m/g, "").trim();
+              if (clean.length > 0) setProgressLine(clean.slice(0, 80));
+            }
+          });
+          deployProcess.stderr?.on("data", (data: Buffer) => {
+            const lines = data.toString().split("\n").filter((l) => l.trim().length > 0);
+            const lastLine = lines.at(-1);
+            if (lastLine) {
+              const clean = lastLine.replace(/\x1b\[[0-9;]*m/g, "").trim();
+              if (clean.length > 0 && !clean.startsWith("WARNING")) setProgressLine(clean.slice(0, 80));
+            }
+          });
+          await deployProcess;
+        }
 
         // Wait for ConfigHub to be ready before seeding
         setStatusMessage("Waiting for services to start...");
