@@ -58,6 +58,10 @@ if [ -z "$RUNTIME" ]; then
 fi
 echo -e "  ${GREEN}✓${NC} Orchestrator: ${BOLD}${RUNTIME}${NC}"
 echo ""
+# Persist the choice so the `exec sg docker -c "bash $SELF"` re-exec (after
+# installing Docker / fixing the docker group) does NOT re-prompt — sg inherits
+# exported env, so the re-run resolves RUNTIME from here instead of asking again.
+export INDUSTREAM_RUNTIME="$RUNTIME"
 
 # =============================================================================
 # Detect OS
