@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { render, Text, Box, useApp, useInput } from "ink";
 import { BoltBuilder } from "../components/BoltBuilder.js";
 import { Banner } from "../components/Banner.js";
 import { ModuleSelector } from "../components/ModuleSelector.js";
+import { DeployDashboard } from "../components/DeployDashboard.js";
+import { DeployReporter } from "../lib/deploy-reporter.js";
+import type { DeployStep } from "../lib/deploy-reporter.js";
 import { InstallConfigPrompt } from "../components/InstallConfigPrompt.js";
 import { saveConfig } from "../lib/config.js";
 import { isDockerAvailable, isSwarmActive } from "../lib/docker.js";
@@ -72,12 +75,15 @@ function InstallSteps({
   );
 }
 
-// Run a script and stream last meaningful line to a callback
+// Run a script and stream last meaningful line to a progress callback.
+// When `onLog` is provided every non-empty line is also forwarded so the
+// 4-pane dashboard's Log pane can show the full script output.
 async function runScript(
   scriptPath: string,
   args: string[],
   cwd: string,
   onProgress: (line: string) => void,
+  onLog?: (line: string) => void,
 ): Promise<void> {
   const subprocess = execa(scriptPath, args, {
     cwd,
@@ -85,28 +91,26 @@ async function runScript(
     stderr: "pipe",
   });
 
-  subprocess.stdout?.on("data", (data: Buffer) => {
+  const handle = (data: Buffer, isStderr: boolean): void => {
     const lines = data.toString().split("\n").filter((line) => line.trim().length > 0);
-    const lastLine = lines.at(-1);
-    if (lastLine) {
+    for (const line of lines) {
       // Strip ANSI color codes for clean display
-      const clean = lastLine.replace(/\x1b\[[0-9;]*m/g, "").trim();
-      if (clean.length > 0) {
-        onProgress(clean.slice(0, 80));
-      }
+      const clean = line.replace(/\x1b\[[0-9;]*m/g, "").trim();
+      if (clean.length === 0) continue;
+      if (isStderr && clean.startsWith("WARNING")) continue;
+      onLog?.(clean);
     }
-  });
-
-  subprocess.stderr?.on("data", (data: Buffer) => {
-    const lines = data.toString().split("\n").filter((line) => line.trim().length > 0);
     const lastLine = lines.at(-1);
     if (lastLine) {
       const clean = lastLine.replace(/\x1b\[[0-9;]*m/g, "").trim();
-      if (clean.length > 0 && !clean.startsWith("WARNING")) {
+      if (clean.length > 0 && !(isStderr && clean.startsWith("WARNING"))) {
         onProgress(clean.slice(0, 80));
       }
     }
-  });
+  };
+
+  subprocess.stdout?.on("data", (data: Buffer) => handle(data, false));
+  subprocess.stderr?.on("data", (data: Buffer) => handle(data, true));
 
   await subprocess;
 }
@@ -137,6 +141,14 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
   const [tls, setTls] = useState<string>(cliTls ?? "selfsigned");
   const [runtimeName, setRuntimeName] = useState<string>(cliRuntime === "compose" ? "compose" : "swarm");
   const [licenseLabel, setLicenseLabel] = useState<string>("Community (no license)");
+
+  // The 4-pane DeployDashboard owns the screen during execution when we have a
+  // TTY. In CI / non-TTY we fall back to the plain InstallSteps + status lines
+  // (Ink still renders, but the dashboard panes are noise without a terminal).
+  const useDashboard = Boolean(process.stdout.isTTY);
+  // A single, stable reporter for the whole install run (mirrors deploy.ts).
+  const reporterRef = useRef<DeployReporter>(new DeployReporter());
+  const reporter = reporterRef.current;
 
   // Load cached license info once for the interactive menu
   useEffect(() => {
@@ -179,10 +191,60 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
   useEffect(() => {
     if (!introDone || !configDone) return;
     async function runInstall() {
+      // ---- Progress sinks: update both the reporter (4-pane dashboard) and
+      // the legacy InstallSteps state (plain non-TTY fallback). The reporter is
+      // the single source of truth for the dashboard; the setStep/setStatus*
+      // calls keep the non-TTY path identical to before. ----
+
+      /** Mark a reporter step running + set the coarse legacy step/status. */
+      const enterStep = (id: string, legacy: Step, message: string): void => {
+        reporter.step(id, "running", message);
+        reporter.log(`▶ ${message}`);
+        setStep(legacy);
+        setStatusMessage(message);
+        setProgressLine("");
+      };
+      /** Finish a reporter step. */
+      const finishStep = (id: string, status: "done" | "skipped" = "done"): void => {
+        reporter.step(id, status);
+      };
+      /** A short status update within the current step. */
+      const status = (message: string): void => {
+        setStatusMessage(message);
+        reporter.log(message);
+      };
+      /** A streamed progress line (one-liner) within the current step. */
+      const progress = (line: string): void => {
+        setProgressLine(line);
+        if (line.trim().length > 0) reporter.log(line);
+      };
+      /** Full log line for the dashboard Log pane (no legacy state change). */
+      const logLine = (line: string): void => {
+        if (line.trim().length > 0) reporter.log(line);
+      };
+
+      // Declare the install step list up-front so the dashboard Steps pane
+      // shows the whole plan from the start. The "configure" group covers
+      // .env + certs + UIFusion; "deploy" covers render+deploy (swarm/unified)
+      // or Caddy (compose).
+      const steps: DeployStep[] = [
+        { id: "prerequisites", label: "Check prerequisites", status: "pending" },
+        { id: "clone", label: "Download platform files", status: "pending" },
+        { id: "configure", label: "Configure platform", status: "pending" },
+        { id: "modules", label: "Resolve modules", status: "pending" },
+        ...(runtimeName === "compose"
+          ? [{ id: "deploy", label: "Start Caddy reverse proxy", status: "pending" as const }]
+          : [
+              { id: "secrets", label: "Create secrets", status: "pending" as const },
+              { id: "render", label: "Render & deploy stack", status: "pending" as const },
+              { id: "deploy", label: "Seed ConfigHub", status: "pending" as const },
+            ]),
+      ];
+      reporter.setSteps(steps);
+
       try {
         // Step 1: Prerequisites
-        setStep("prerequisites");
-        setStatusMessage("Checking Docker...");
+        enterStep("prerequisites", "prerequisites", "Checking Docker...");
         if (!(await isDockerAvailable())) {
           throw new Error(
             "Docker is not installed. Install Docker first: https://docs.docker.com/engine/install/",
@@ -191,34 +253,33 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         // Only the Swarm runtime needs a Swarm. Compose runs on plain Docker,
         // so don't initialize Swarm when it isn't required.
         if (runtimeName === "swarm") {
-          setStatusMessage("Checking Docker Swarm...");
+          status("Checking Docker Swarm...");
           if (!(await isSwarmActive())) {
-            setStatusMessage("Initializing Docker Swarm...");
+            status("Initializing Docker Swarm...");
             await execa("/usr/bin/docker", ["swarm", "init"]);
           }
         } else {
-          setStatusMessage("Compose runtime — skipping Docker Swarm");
+          status("Compose runtime — skipping Docker Swarm");
         }
+        finishStep("prerequisites");
 
         // Step 2: Clone repo
-        setStep("clone");
-        setProgressLine("");
-        setStatusMessage("Downloading platform files...");
+        enterStep("clone", "clone", "Downloading platform files...");
         const resolved = resolvePlatformDir(platformDirectory);
         if (await isPlatformInstalled(platformDirectory)) {
-          setStatusMessage("Platform files already present, updating...");
+          status("Platform files already present, updating...");
           await execa("git", ["-C", resolved, "pull", "--ff-only"]);
         } else {
-          await cloneSwarmRepo(platformDirectory, (line) => setProgressLine(line));
+          await cloneSwarmRepo(platformDirectory, (line) => progress(line));
         }
 
         // Compose runtime also needs the parallel deployment tree
         // (industream-flowmaker) — the swarm clone doesn't include it.
         if (runtimeName === "compose") {
-          setStatusMessage("Downloading compose deployment tree...");
-          setProgressLine("");
-          await ensureComposeTree((line) => setProgressLine(line));
+          status("Downloading compose deployment tree...");
+          await ensureComposeTree((line) => progress(line));
         }
+        finishStep("clone");
 
         // Ensure base .env exists (copied from .env.example)
         // The env-specific overrides (.env.<env>) are created by deploy-swarm.sh
@@ -240,7 +301,11 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         // `industream deploy` invocations route to the right runtime via
         // getRuntime() in src/lib/runtimes/index.ts.
         const tlsMode = tls === "letsencrypt" ? "letsencrypt" : "selfsigned";
-        setStatusMessage(`Configuring domain: ${domain} (TLS: ${tlsMode}, runtime: ${runtimeName})`);
+        enterStep(
+          "configure",
+          "clone",
+          `Configuring domain: ${domain} (TLS: ${tlsMode}, runtime: ${runtimeName})`,
+        );
         await updateEnvValue(platformDirectory, "INDUSTREAM_DOMAIN", domain);
         await updateEnvValue(platformDirectory, "TLS_MODE", tlsMode);
         await updateEnvValue(platformDirectory, "RUNTIME", runtimeName);
@@ -250,28 +315,27 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
 
         // Regenerate certs (selfsigned) and UIFusion config to apply the new domain
         if (tlsMode === "selfsigned") {
-          setStatusMessage("Generating self-signed certificates...");
-          setProgressLine("");
+          status("Generating self-signed certificates...");
           await runScript(
             join(resolved, "scripts/generate/generate-certs.sh"),
             [],
             resolved,
-            (line) => setProgressLine(line),
+            (line) => progress(line),
+            (line) => logLine(line),
           );
         }
-        setStatusMessage("Generating UIFusion configuration...");
-        setProgressLine("");
+        status("Generating UIFusion configuration...");
         await runScript(
           join(resolved, "scripts/generate/generate-uifusion-config.sh"),
           ["--force", "--env", environment],
           resolved,
-          (line) => setProgressLine(line),
+          (line) => progress(line),
+          (line) => logLine(line),
         );
+        finishStep("configure");
 
         // Step 3: Modules
-        setStep("modules");
-        setProgressLine("");
-        setStatusMessage("Analyzing modules...");
+        enterStep("modules", "modules", "Analyzing modules...");
 
         const licenseResult = await validateLicenseWithKeygen();
         const moduleRegistry = loadModuleRegistry();
@@ -289,10 +353,10 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
 
         if (isLicensed) {
           const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
-          setStatusMessage(`Deploying all ${totalCount} modules (${planLabel} license)`);
+          status(`Deploying all ${totalCount} modules (${planLabel} license)`);
           setModulesSummary(`${totalCount} modules deployed.`);
         } else {
-          setStatusMessage(
+          status(
             `Deploying ${communityCount} community modules (${premiumCount} premium modules available with license)`,
           );
           setModulesSummary(
@@ -302,6 +366,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
 
         // Pause so user can read the module summary and configuration
         await new Promise((resolve) => setTimeout(resolve, 5000));
+        finishStep("modules");
 
         // Step 4: Setup
         setStep("setup");
@@ -340,20 +405,18 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           "EDITION",
           plan === "community" ? "ce" : "ee",
         );
-        console.log(
+        logLine(
           `  Configured registries: community=${COMMUNITY_REGISTRY}, enterprise=${ENTERPRISE_REGISTRY}`,
         );
 
         // Check / setup Docker registry login
-        setStatusMessage("Checking registry access...");
-        setProgressLine("");
+        status("Checking registry access...");
         await ensureRegistryLogin(dockerRegistry, plan);
 
         // Compose runtime: no Swarm, no Traefik. Bring up the shared Caddy
         // reverse proxy; per-instance deploys happen via `industream deploy`.
         if (runtimeName === "compose") {
-          setStatusMessage("Starting Caddy reverse proxy...");
-          setProgressLine("");
+          enterStep("deploy", "setup", "Starting Caddy reverse proxy...");
           // Non-fatal: Caddy is also (re)started on first deploy. But don't
           // swallow the error silently — a failed start used to leave the
           // user with no proxy and no message.
@@ -363,42 +426,52 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
               join(resolved, "scripts/compose/fm-caddy.sh"),
               ["rebuild"],
               resolved,
-              (line) => setProgressLine(line),
+              (line) => progress(line),
+              (line) => logLine(line),
             );
           } catch (error) {
             caddyOk = false;
-            setProgressLine(error instanceof Error ? error.message : String(error));
+            progress(error instanceof Error ? error.message : String(error));
           }
-          setModulesSummary(
-            caddyOk
-              ? "Run 'industream deploy --env <instance>' to bring up an instance."
-              : "⚠ Caddy did not start (it will be retried on first deploy). " +
-                  "Check 'docker ps', then run 'industream deploy --env <instance>'.",
-          );
+          const summary = caddyOk
+            ? "Run 'industream deploy --env <instance>' to bring up an instance."
+            : "⚠ Caddy did not start (it will be retried on first deploy). " +
+                "Check 'docker ps', then run 'industream deploy --env <instance>'.";
+          setModulesSummary(summary);
+          finishStep("deploy", caddyOk ? "done" : "skipped");
+          reporter.setResult({
+            ok: caddyOk,
+            summary,
+            urls: [],
+          });
           setStep("done");
           return;
         }
 
-        setStatusMessage("Deploying Traefik...");
-        setProgressLine("");
+        // Step 5: Secrets (swarm)
+        enterStep("secrets", "setup", "Deploying Traefik...");
         await runScript(
           join(resolved, "scripts/deploy-traefik.sh"),
           [],
           resolved,
-          (line) => setProgressLine(line),
+          (line) => progress(line),
+          (line) => logLine(line),
         );
         await new Promise((resolve) => setTimeout(resolve, 1500));
 
-        setStatusMessage("Creating secrets...");
-        setProgressLine("");
+        status("Creating secrets...");
         await runScript(
           join(resolved, "scripts/setup/create-secrets.sh"),
           ["--env", environment],
           resolved,
-          (line) => setProgressLine(line),
+          (line) => progress(line),
+          (line) => logLine(line),
         );
         await new Promise((resolve) => setTimeout(resolve, 1500));
+        finishStep("secrets");
 
+        // Step 6: Render & deploy stack (swarm)
+        enterStep("render", "setup", "Deploying platform stack...");
         if (await unifiedTreeExists(platformDirectory)) {
           // ---- v2: unified deploy via scripts/deploy.sh (assembler + bundle) ----
           const unified = unifiedDir(platformDirectory);
@@ -415,15 +488,15 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
               join(baseCerts, `${domain}.${ext}`),
             ).catch(() => {});
           }
-          setStatusMessage("Rendering release bundle...");
-          setProgressLine("");
+          status("Rendering release bundle...");
           // Bundle version label is cosmetic — images resolve from versions.env;
           // deploy.sh auto-selects the single rendered bundle.
           await runScript(
             join(unified, "scripts/render-bundles.sh"),
             ["1.0.1"],
             unified,
-            (line) => setProgressLine(line),
+            (line) => progress(line),
+            (line) => logLine(line),
           );
           // Site env consumed by deploy.sh (.env.<env>): domain/TLS + the
           // env-agnostic config defaults the base/*.yml expect.
@@ -440,19 +513,18 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
               `POSTGRES_ADMIN_USER=postgres`, `DATACATALOG_DB_USER=datacatalog`,
             ].join("\n") + "\n",
           );
-          setStatusMessage("Deploying platform stack (unified deploy.sh)...");
-          setProgressLine("");
+          status("Deploying platform stack (unified deploy.sh)...");
           await runScript(
             join(unified, "scripts/deploy.sh"),
             ["--runtime", "swarm", "--edition", plan === "community" ? "ce" : "ee",
              "--env", environment, "--stack", `industream-${environment}`],
             unified,
-            (line) => setProgressLine(line),
+            (line) => progress(line),
+            (line) => logLine(line),
           );
         } else {
           // ---- legacy docker-stack path (installs not yet on the unified tree) ----
-          setStatusMessage("Deploying platform stack...");
-          setProgressLine("");
+          status("Deploying platform stack...");
           const deployArgs = ["--env", environment];
           const { getDeployFlags } = await import("../lib/stack-filter.js");
           const deployFlags = await getDeployFlags(resolved);
@@ -470,28 +542,31 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           );
           deployProcess.stdin?.write("y\ny\ny\ny\n");
           deployProcess.stdin?.end();
-          deployProcess.stdout?.on("data", (data: Buffer) => {
+          const pump = (data: Buffer, isStderr: boolean): void => {
             const lines = data.toString().split("\n").filter((l) => l.trim().length > 0);
+            for (const line of lines) {
+              const clean = line.replace(/\x1b\[[0-9;]*m/g, "").trim();
+              if (clean.length === 0) continue;
+              if (isStderr && clean.startsWith("WARNING")) continue;
+              logLine(clean);
+            }
             const lastLine = lines.at(-1);
             if (lastLine) {
               const clean = lastLine.replace(/\x1b\[[0-9;]*m/g, "").trim();
-              if (clean.length > 0) setProgressLine(clean.slice(0, 80));
+              if (clean.length > 0 && !(isStderr && clean.startsWith("WARNING"))) {
+                setProgressLine(clean.slice(0, 80));
+              }
             }
-          });
-          deployProcess.stderr?.on("data", (data: Buffer) => {
-            const lines = data.toString().split("\n").filter((l) => l.trim().length > 0);
-            const lastLine = lines.at(-1);
-            if (lastLine) {
-              const clean = lastLine.replace(/\x1b\[[0-9;]*m/g, "").trim();
-              if (clean.length > 0 && !clean.startsWith("WARNING")) setProgressLine(clean.slice(0, 80));
-            }
-          });
+          };
+          deployProcess.stdout?.on("data", (data: Buffer) => pump(data, false));
+          deployProcess.stderr?.on("data", (data: Buffer) => pump(data, true));
           await deployProcess;
         }
+        finishStep("render");
 
-        // Wait for ConfigHub to be ready before seeding
-        setStatusMessage("Waiting for services to start...");
-        setProgressLine("ConfigHub needs to be ready before seeding...");
+        // Step 7: Seed ConfigHub (swarm)
+        enterStep("deploy", "setup", "Waiting for services to start...");
+        progress("ConfigHub needs to be ready before seeding...");
         const stackName = `industream-${environment}`;
         let configHubReady = false;
         for (let attempt = 0; attempt < 60; attempt++) {
@@ -508,16 +583,15 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           } catch {
             // service not found yet
           }
-          setProgressLine(`Waiting for ConfigHub... (${attempt + 1}/60)`);
+          progress(`Waiting for ConfigHub... (${attempt + 1}/60)`);
           await new Promise((resolve) => setTimeout(resolve, 5000));
         }
 
         if (!configHubReady) {
-          setProgressLine("ConfigHub not ready after 5 minutes — skipping seed");
+          progress("ConfigHub not ready after 5 minutes — skipping seed");
         }
 
-        setStatusMessage("Seeding ConfigHub...");
-        setProgressLine("");
+        status("Seeding ConfigHub...");
         // Add a small delay for the service to fully initialize
         if (configHubReady) {
           await new Promise((resolve) => setTimeout(resolve, 10000));
@@ -526,8 +600,10 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           join(resolved, "scripts/setup/seed-confighub.sh"),
           ["--stack", stackName, "--domain", domain],
           resolved,
-          (line) => setProgressLine(line),
+          (line) => progress(line),
+          (line) => logLine(line),
         );
+        finishStep("deploy");
 
         // Save config
         await saveConfig({
@@ -536,10 +612,23 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           domain,
         });
 
+        const prefix = environment === "prod" ? "" : `${environment}.`;
+        reporter.setResult({
+          ok: true,
+          summary: `Platform installed (${environment}). Press any key to view status.`,
+          urls: [
+            { label: "Hub", url: `https://${prefix}${domain}` },
+            { label: "Grafana", url: `https://dashboard.${prefix}${domain}` },
+            { label: "DataCatalog", url: `https://datacatalog.${prefix}${domain}` },
+          ],
+        });
         setStep("done");
         setProgressLine("");
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        const message = err instanceof Error ? err.message : String(err);
+        reporter.log(message);
+        reporter.setResult({ ok: false, summary: message, urls: [] });
+        setError(message);
         setStep("error");
         setTimeout(() => exit(), 3000);
       }
@@ -588,6 +677,25 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
             setConfigDone(true);
           }}
         />
+      </Box>
+    );
+  }
+
+  // Execution phase. With a TTY, render the same 4-pane DeployDashboard that
+  // `industream deploy` uses, driven by the reporter populated in runInstall().
+  // In CI / non-TTY, fall back to the plain InstallSteps + status lines.
+  if (useDashboard) {
+    return (
+      <Box flexDirection="column">
+        <DeployDashboard
+          reporter={reporter}
+          title={`Industream · install · ${environment} · ${runtimeName}`}
+        />
+        {isDone && (
+          <Box marginTop={1}>
+            <Text color="blue">Press any key to view platform status...</Text>
+          </Box>
+        )}
       </Box>
     );
   }
