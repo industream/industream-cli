@@ -22,7 +22,7 @@ import { loadModuleRegistry, getModulesByLicense } from "../lib/modules.js";
 import type { Module, Plan } from "../lib/modules.js";
 import { execa } from "execa";
 import { join } from "node:path";
-import { copyFile, access, writeFile } from "node:fs/promises";
+import { copyFile, access, writeFile, mkdir } from "node:fs/promises";
 import { unifiedTreeExists, unifiedDir } from "../lib/unified-deploy.js";
 import { createInterface } from "node:readline";
 
@@ -402,6 +402,19 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         if (await unifiedTreeExists(platformDirectory)) {
           // ---- v2: unified deploy via scripts/deploy.sh (assembler + bundle) ----
           const unified = unifiedDir(platformDirectory);
+          // The unified swarm overlay bind-mounts ./certs/<domain>.crt (resolved
+          // under base/) so Grafana trusts the proxy for its JWKS fetch.
+          // generate-certs.sh writes the platform CA to <platformDir>/certs (the
+          // legacy path) — mirror it into unified/base/certs so the mount resolves
+          // (otherwise grafana tasks are Rejected: "bind source path does not exist").
+          const baseCerts = join(unified, "base", "certs");
+          await mkdir(baseCerts, { recursive: true });
+          for (const ext of ["crt", "key"]) {
+            await copyFile(
+              join(resolved, "certs", `${domain}.${ext}`),
+              join(baseCerts, `${domain}.${ext}`),
+            ).catch(() => {});
+          }
           setStatusMessage("Rendering release bundle...");
           setProgressLine("");
           // Bundle version label is cosmetic — images resolve from versions.env;
