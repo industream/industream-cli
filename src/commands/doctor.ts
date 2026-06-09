@@ -6,7 +6,7 @@ import { execa } from "execa";
 import { stat, readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { randomBytes } from "node:crypto";
+import { randomBytes, generateKeyPairSync } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { loadConfig } from "../lib/config.js";
@@ -82,6 +82,13 @@ function secretValueFor(name: string): string {
   if (name.endsWith("minio_root_user")) return "minioadmin";
   if (name.endsWith("logto_db_url"))
     return `postgres://postgres:${randomBytes(12).toString("hex")}@logto-postgres:5432/logto`;
+  // The Hub backend signs JWTs with RS256 (IH_JWT_SIGNING_KEY_FILE) → it must be
+  // a PEM RSA private key, not a random string (else createPrivateKey throws
+  // ERR_OSSL_UNSUPPORTED and hub-backend crash-loops).
+  if (name.endsWith("hub_jwt_signing_key"))
+    return generateKeyPairSync("rsa", { modulusLength: 2048 })
+      .privateKey.export({ type: "pkcs8", format: "pem" })
+      .toString();
   return randomBytes(16).toString("hex");
 }
 
