@@ -8,7 +8,7 @@ import { DeployReporter } from "../lib/deploy-reporter.js";
 import type { DeployStep } from "../lib/deploy-reporter.js";
 import { InstallConfigPrompt } from "../components/InstallConfigPrompt.js";
 import { saveConfig } from "../lib/config.js";
-import { isDockerAvailable, isSwarmActive } from "../lib/docker.js";
+import { isDockerAvailable, isSwarmActive, getSwarmServices } from "../lib/docker.js";
 import {
   cloneSwarmRepo,
   ensureComposeTree,
@@ -517,14 +517,40 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
             ].join("\n") + "\n",
           );
           status("Deploying platform stack (unified deploy.sh)...");
-          await runScript(
-            join(unified, "scripts/deploy.sh"),
-            ["--runtime", "swarm", "--edition", plan === "community" ? "ce" : "ee",
-             "--env", environment, "--stack", `industream-${environment}`],
-            unified,
-            (line) => progress(line),
-            (line) => logLine(line),
-          );
+          // `docker stack deploy` gives the CLI no live pull progress — the node
+          // pulls images in the background, so the Log pane looks stuck. Poll the
+          // stack so the dashboard's Service health pane fills in live
+          // (Preparing → 1/1) while images pull and tasks converge.
+          const stackName = `industream-${environment}`;
+          let pollingHealth = true;
+          const pollHealth = async (): Promise<void> => {
+            try {
+              const svcs = await getSwarmServices(stackName);
+              reporter.setServices(
+                svcs.map((s) => {
+                  const [r, t] = s.replicas.split("/").map((n) => parseInt(n, 10) || 0);
+                  return { name: s.name, ready: r, total: t || 1, converged: r > 0 && r === t };
+                }),
+              );
+            } catch {
+              // stack not created yet — ignore
+            }
+          };
+          const healthTimer = setInterval(() => { if (pollingHealth) void pollHealth(); }, 3000);
+          try {
+            await runScript(
+              join(unified, "scripts/deploy.sh"),
+              ["--runtime", "swarm", "--edition", plan === "community" ? "ce" : "ee",
+               "--env", environment, "--stack", stackName],
+              unified,
+              (line) => progress(line),
+              (line) => logLine(line),
+            );
+          } finally {
+            pollingHealth = false;
+            clearInterval(healthTimer);
+            await pollHealth();
+          }
         } else {
           // ---- legacy docker-stack path (installs not yet on the unified tree) ----
           status("Deploying platform stack...");
