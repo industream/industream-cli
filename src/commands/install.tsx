@@ -750,6 +750,11 @@ async function confirmReinstall(): Promise<boolean> {
   console.log("    \x1b[1mindustream update\x1b[0m   — pull latest stack changes");
   console.log("    \x1b[1mindustream deploy\x1b[0m   — re-apply the stack (regenerates certs + UIFusion config)");
   console.log("");
+  console.log("  \x1b[32m✓ Your data is safe:\x1b[0m named volumes (PostgreSQL, InfluxDB, MinIO,");
+  console.log("    Grafana, TimescaleDB) and existing secrets are \x1b[1mpreserved\x1b[0m. Reinstall");
+  console.log("    re-runs the deploy + regenerates configs/certs — it does \x1b[1mNOT\x1b[0m delete");
+  console.log("    volumes or wipe data.");
+  console.log("");
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
