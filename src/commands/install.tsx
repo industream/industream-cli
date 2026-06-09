@@ -213,10 +213,13 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         setStatusMessage(message);
         reporter.log(message);
       };
-      /** A streamed progress line (one-liner) within the current step. */
+      /** A streamed progress line (one-liner) within the current step. Updates
+       * the transient legacy status line ONLY — it must NOT push to the
+       * dashboard Log pane, otherwise runScript (which fires onProgress for the
+       * last line of every chunk AND onLog for every line) double-logs each
+       * streamed line. The Log pane is fed exclusively by `logLine` (onLog). */
       const progress = (line: string): void => {
         setProgressLine(line);
-        if (line.trim().length > 0) reporter.log(line);
       };
       /** Full log line for the dashboard Log pane (no legacy state change). */
       const logLine = (line: string): void => {
@@ -270,14 +273,14 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           status("Platform files already present, updating...");
           await execa("git", ["-C", resolved, "pull", "--ff-only"]);
         } else {
-          await cloneSwarmRepo(platformDirectory, (line) => progress(line));
+          await cloneSwarmRepo(platformDirectory, (line) => { progress(line); logLine(line); });
         }
 
         // Compose runtime also needs the parallel deployment tree
         // (industream-flowmaker) — the swarm clone doesn't include it.
         if (runtimeName === "compose") {
           status("Downloading compose deployment tree...");
-          await ensureComposeTree((line) => progress(line));
+          await ensureComposeTree((line) => { progress(line); logLine(line); });
         }
         finishStep("clone");
 
