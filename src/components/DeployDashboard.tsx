@@ -100,6 +100,19 @@ export function DeployDashboard({ reporter, title }: DeployDashboardProps): Reac
                   </Box>
                 ))}
               </Box>
+              {snap.result.credentials && snap.result.credentials.length > 0 ? (
+                <Box marginTop={1} flexDirection="column">
+                  <Text color="yellow" bold>🔑 Save these now (admin):</Text>
+                  {snap.result.credentials.map((c) => (
+                    <Text key={c.label}>
+                      <Text bold>{c.label}</Text> {c.user} / {c.pass}
+                    </Text>
+                  ))}
+                  {snap.result.secretsDir ? (
+                    <Text color="gray">↳ all: {snap.result.secretsDir}</Text>
+                  ) : null}
+                </Box>
+              ) : null}
             </>
           )}
         </Pane>
