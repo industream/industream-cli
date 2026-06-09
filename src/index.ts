@@ -11,6 +11,7 @@ import { runUpdate } from "./commands/update.js";
 import { runConfig } from "./commands/config.js";
 import { runLicense } from "./commands/license.js";
 import { runUninstall } from "./commands/uninstall.js";
+import { runTrustCa } from "./commands/trust-ca.js";
 import { runWorkerAdd, runWorkerList, runWorkerRemove } from "./commands/worker.js";
 import { runMenu } from "./commands/menu.js";
 import {
@@ -189,6 +190,15 @@ program
   .option("--env <environment>", "Environment to uninstall")
   .action((options) => {
     runUninstall(options.env);
+  });
+
+program
+  .command("trust-ca")
+  .description("Install the platform's self-signed CA into your machine trust store")
+  .option("--domain <domain>", "Platform domain (default: from .env INDUSTREAM_DOMAIN/DOMAIN)")
+  .option("--cert <path>", "Path to the CA certificate (overrides --domain lookup)")
+  .action((options) => {
+    runTrustCa({ domain: options.domain, cert: options.cert });
   });
 
 const workerCommand = new Command("worker").description("Manage external workers");
