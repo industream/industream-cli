@@ -35,7 +35,7 @@ export interface DoctorOptions {
 // Secret base names shared by both runtimes. Swarm uses `${env}_<name>` external
 // secrets; compose uses files named `<name>` under SECRETS_DIR.
 const SECRET_NAMES = [
-  "postgres_admin_password", "datacatalog_db_password", "grafana_admin_password",
+  "postgres_admin_password", "datacatalog_db_password", "datacatalog_api_key", "grafana_admin_password",
   "grafana_db_password", "minio_root_user", "minio_root_password",
   "influx_admin_password", "influx_admin_token", "timescaledb_password", "databridge_pg_password",
 ];
@@ -195,7 +195,9 @@ async function registryChecks(unified: string, edition: Edition): Promise<Check[
       : `cannot pull ${communityImg} — GHCR packages are PRIVATE; docker login or make them public` });
 
   if (edition === "ee") {
-    const entImg = `${ENTERPRISE_REGISTRY}/industream/grafana-hub-wrapper:${versions.get("GRAFANA_WRAPPER_VERSION") ?? "1.0.1"}`;
+    // grafana-hub-wrapper is now a COMMUNITY image (GHCR); probe a genuinely
+    // enterprise-only image instead — the enterprise Hub backend.
+    const entImg = `${ENTERPRISE_REGISTRY}/uifusion/api-enterprise:${versions.get("UIFUSION_API_EE_VERSION") ?? "2.1.2"}`;
     const eOk = (await sh("docker", ["manifest", "inspect", entImg])).ok;
     checks.push({ name: "enterprise registry pull (EE)", status: eOk ? "pass" : "fail",
       detail: eOk ? `${entImg} reachable`
