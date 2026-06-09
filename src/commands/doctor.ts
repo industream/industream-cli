@@ -38,6 +38,7 @@ const SECRET_NAMES = [
   "postgres_admin_password", "datacatalog_db_password", "datacatalog_api_key", "grafana_admin_password",
   "grafana_db_password", "minio_root_user", "minio_root_password",
   "influx_admin_password", "influx_admin_token", "timescaledb_password", "databridge_pg_password",
+  "hub_jwt_signing_key",
 ];
 const EE_SECRET_NAMES = ["logto_db_url", "logto_db_password"];
 
