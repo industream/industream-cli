@@ -25,7 +25,7 @@ import { loadModuleRegistry, getModulesByLicense } from "../lib/modules.js";
 import type { Module, Plan } from "../lib/modules.js";
 import { execa } from "execa";
 import { join } from "node:path";
-import { copyFile, access, writeFile, mkdir } from "node:fs/promises";
+import { copyFile, access, writeFile, mkdir, readFile } from "node:fs/promises";
 import { unifiedTreeExists, unifiedDir } from "../lib/unified-deploy.js";
 import { createInterface } from "node:readline";
 
@@ -642,6 +642,24 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         });
 
         const prefix = environment === "prod" ? "" : `${environment}.`;
+        // Surface the generated admin credentials ONCE — create-secrets persists
+        // every secret value to <platformDir>/secrets/<env>/ (chmod 700), but the
+        // operator otherwise never sees them (random passwords). Read the handful
+        // of user-facing ones for the Result pane.
+        const secretsDir = join(resolved, "secrets", environment);
+        const readSecret = async (name: string): Promise<string> =>
+          (await readFile(join(secretsDir, name), "utf8").catch(() => "")).trim();
+        const credentials: { label: string; user: string; pass: string }[] = [];
+        const hubPass = await readSecret("hub_backend_admin_password");
+        if (hubPass)
+          credentials.push({ label: "Hub", user: (await readSecret("hub_backend_admin_user")) || "admin", pass: hubPass });
+        const grafanaPass = await readSecret("grafana_admin_password");
+        if (grafanaPass) credentials.push({ label: "Grafana", user: "admin", pass: grafanaPass });
+        const minioPass = await readSecret("minio_root_password");
+        if (minioPass)
+          credentials.push({ label: "MinIO", user: (await readSecret("minio_root_user")) || "admin", pass: minioPass });
+        const influxPass = await readSecret("influx_admin_password");
+        if (influxPass) credentials.push({ label: "InfluxDB", user: "admin", pass: influxPass });
         reporter.setResult({
           ok: true,
           summary: `Platform installed (${environment}). Press any key to view status.`,
@@ -650,6 +668,8 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
             { label: "Grafana", url: `https://dashboard.${prefix}${domain}` },
             { label: "DataCatalog", url: `https://datacatalog.${prefix}${domain}` },
           ],
+          credentials,
+          secretsDir,
         });
         setStep("done");
         setProgressLine("");

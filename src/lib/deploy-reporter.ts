@@ -26,6 +26,10 @@ export interface DeployResultInfo {
   ok: boolean;
   summary: string;
   urls: { label: string; url: string }[];
+  /** Generated admin credentials, shown ONCE at the end of install. */
+  credentials?: { label: string; user: string; pass: string }[];
+  /** Where the full set of generated secrets lives on disk (operator-only). */
+  secretsDir?: string;
 }
 
 export interface DeploySnapshot {
