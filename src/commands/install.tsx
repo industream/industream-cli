@@ -662,7 +662,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         if (influxPass) credentials.push({ label: "InfluxDB", user: "admin", pass: influxPass });
         reporter.setResult({
           ok: true,
-          summary: `Platform installed (${environment}). Press any key to view status.`,
+          summary: `Platform installed (${environment}). Press any key to view status. · Browser cert warning? run: industream trust-ca`,
           urls: [
             { label: "Hub", url: `https://${prefix}${domain}` },
             { label: "Grafana", url: `https://dashboard.${prefix}${domain}` },
