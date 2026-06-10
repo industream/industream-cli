@@ -84,13 +84,29 @@ export async function isComposeTreeInstalled(): Promise<boolean> {
   }
 }
 
-/** Clone (or pull) the compose deployment tree as a sibling of the platform. */
+// Update a deployment tree to match its remote default branch, DISCARDING any
+// local changes. The deploy writes runtime artefacts into tracked files (bundle
+// .env.*, generated htpasswd, …), so a plain `git pull --ff-only` fails on the
+// next install with "local changes would be overwritten by merge". The tree is a
+// deploy artefact whose canonical state is the remote — those local edits are
+// regenerated on every deploy — so we fetch + hard-reset. reset --hard only
+// touches tracked files, so user custom/ overlays (untracked) are preserved.
+async function hardResetToRemote(resolved: string): Promise<string> {
+  await execa("git", ["-C", resolved, "fetch", "origin", "--quiet"]);
+  const ref = await execa("git", ["-C", resolved, "rev-parse", "--abbrev-ref", "origin/HEAD"])
+    .then((r) => r.stdout.trim())
+    .catch(() => "origin/main");
+  const { stdout } = await execa("git", ["-C", resolved, "reset", "--hard", ref || "origin/main"]);
+  return stdout;
+}
+
+/** Clone (or update) the compose deployment tree as a sibling of the platform. */
 export async function ensureComposeTree(
   onProgress?: (line: string) => void,
 ): Promise<void> {
   const resolved = resolvePlatformDir(COMPOSE_TREE_DIR);
   if (await isComposeTreeInstalled()) {
-    await execa("git", ["-C", resolved, "pull", "--ff-only"]).catch(() => {
+    await hardResetToRemote(resolved).catch(() => {
       // best-effort update; a clone already exists
     });
     return;
@@ -99,9 +115,7 @@ export async function ensureComposeTree(
 }
 
 export async function pullSwarmRepo(platformDir: string): Promise<string> {
-  const resolved = resolvePlatformDir(platformDir);
-  const { stdout } = await execa("git", ["-C", resolved, "pull", "--ff-only"]);
-  return stdout;
+  return hardResetToRemote(resolvePlatformDir(platformDir));
 }
 
 export async function loadEnvFile(platformDir: string): Promise<Record<string, string>> {
