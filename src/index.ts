@@ -143,8 +143,12 @@ program
     "--runtime <runtime>",
     "Container orchestrator (swarm or compose). Locked in .env. Default: swarm",
   )
+  .option(
+    "--with-portainer",
+    "Also deploy a Portainer ops console (view + per-service management of the stack)",
+  )
   .action((options) => {
-    runInstall(options.env, options.domain, options.tls, options.runtime);
+    runInstall(options.env, options.domain, options.tls, options.runtime, options.withPortainer);
   });
 
 program
