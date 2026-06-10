@@ -103,7 +103,7 @@ export function DeployDashboard({ reporter, title }: DeployDashboardProps): Reac
 
       {/* Bottom row: Log + Result — both scrollable */}
       <Box>
-        <ScrollPane title="Log" color={BRAND_BLUE} width="55%" height={LOG_LINES} lines={collapseLog(snap.logs)} />
+        <ScrollPane title="Log" color={BRAND_BLUE} width="55%" height={LOG_LINES} lines={collapseLog(snap.logs)} interactive />
         <ScrollPane
           title="Result"
           color={resultColor}
