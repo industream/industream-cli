@@ -14,6 +14,7 @@ import {
   cloneSwarmRepo,
   ensureComposeTree,
   isPlatformInstalled,
+  pullSwarmRepo,
   resolvePlatformDir,
   updateEnvValue,
 } from "../lib/swarm-repo.js";
@@ -305,7 +306,11 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         const resolved = resolvePlatformDir(platformDirectory);
         if (await isPlatformInstalled(platformDirectory)) {
           status("Platform files already present, updating...");
-          await execa("git", ["-C", resolved, "pull", "--ff-only"]);
+          // Use the resilient updater (fetch + reset --hard origin), NOT
+          // `git pull --ff-only`: the deploy writes runtime artefacts into tracked
+          // files (bundle .env.*, generated htpasswd), so a plain ff-only pull
+          // aborts with "local changes would be overwritten" on every reinstall.
+          await pullSwarmRepo(platformDirectory);
         } else {
           await cloneSwarmRepo(platformDirectory, (line) => { progress(line); logLine(line); });
         }
