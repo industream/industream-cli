@@ -30,6 +30,10 @@ export interface DeployResultInfo {
   credentials?: { label: string; user: string; pass: string }[];
   /** Where the full set of generated secrets lives on disk (operator-only). */
   secretsDir?: string;
+  /** Self-signed TLS hint: how to trust the CA so the browser stops warning. */
+  tls?: { selfSigned: boolean; caPath?: string };
+  /** /etc/hosts block to add on the operator workstation (self-signed/local domain). */
+  hostsBlock?: string;
 }
 
 export interface DeploySnapshot {

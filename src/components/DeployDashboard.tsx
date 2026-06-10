@@ -35,17 +35,26 @@ function resultLines(result: DeployResultInfo): string[] {
   const lines: string[] = [
     result.ok ? "✓ Deployment complete" : "✗ Deployment failed",
     result.summary,
-    "",
   ];
-  for (const url of result.urls) {
-    lines.push(url.label, `  ${url.url}`);
+  if (result.urls.length > 0) {
+    const w = Math.max(...result.urls.map((u) => u.label.length));
+    lines.push("", "🔗 Access");
+    for (const url of result.urls) lines.push(`  ${url.label.padEnd(w)}  ${url.url}`);
   }
   if (result.credentials && result.credentials.length > 0) {
-    lines.push("", "🔑 Save these now (admin):");
-    for (const cred of result.credentials) {
-      lines.push(`  ${cred.label}: ${cred.user} / ${cred.pass}`);
-    }
-    if (result.secretsDir) lines.push(`  ↳ all: ${result.secretsDir}`);
+    const w = Math.max(...result.credentials.map((c) => c.label.length));
+    lines.push("", "🔑 Admin credentials (save now)");
+    for (const c of result.credentials) lines.push(`  ${c.label.padEnd(w)}  ${c.user} / ${c.pass}`);
+    if (result.secretsDir) lines.push(`  ↳ all secrets: ${result.secretsDir}`);
+  }
+  if (result.tls?.selfSigned) {
+    lines.push("", "🔒 Self-signed TLS — trust the CA (stops browser warnings):");
+    lines.push("  industream trust-ca");
+    if (result.tls.caPath) lines.push(`  CA file: ${result.tls.caPath}`);
+  }
+  if (result.hostsBlock) {
+    lines.push("", "📝 Add to /etc/hosts on your workstation:");
+    for (const l of result.hostsBlock.split("\n")) lines.push(`  ${l}`);
   }
   return lines;
 }
