@@ -748,16 +748,51 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           credentials.push({ label: "MinIO", user: (await readSecret("minio_root_user")) || "admin", pass: minioPass });
         const influxPass = await readSecret("influx_admin_password");
         if (influxPass) credentials.push({ label: "InfluxDB", user: "admin", pass: influxPass });
+        // Full access map — every routed service subdomain (Traefik Host rules).
+        const host = `${prefix}${domain}`;
+        const services: { label: string; sub: string }[] = [
+          { label: "Hub", sub: "" },
+          { label: "FlowMaker", sub: "flowmaker" },
+          { label: "Grafana", sub: "dashboard" },
+          { label: "DataCatalog", sub: "datacatalog" },
+          { label: "DataCatalog API", sub: "datacatalog-api" },
+          { label: "DataBridge", sub: "databridge" },
+          { label: "Scheduler", sub: "scheduler" },
+          { label: "ConfigHub", sub: "confighub" },
+          { label: "InfluxDB", sub: "influxdb" },
+          { label: "MinIO", sub: "minio" },
+          { label: "Prometheus", sub: "prometheus" },
+          { label: "Alertmanager", sub: "alertmanager" },
+        ];
+        const urls = services.map((s) => ({
+          label: s.label,
+          url: `https://${s.sub ? `${s.sub}.` : ""}${host}`,
+        }));
+        // Self-signed TLS: where to grab the CA + the /etc/hosts block the operator
+        // needs on their workstation (local domain → server IP) so the names resolve.
+        const selfSigned = tls === "selfsigned";
+        const caPath = join(resolved, "certs", `${domain}.crt`);
+        let serverIp = "<server-ip>";
+        try {
+          const { stdout } = await execa("hostname", ["-I"]);
+          serverIp =
+            stdout.trim().split(/\s+/).find((ip) => /^\d+\.\d+\.\d+\.\d+$/.test(ip) && !ip.startsWith("127.")) ??
+            serverIp;
+        } catch {
+          /* keep placeholder */
+        }
+        // One `IP name` line per host so it stays copy-pasteable (the pane
+        // truncates long lines) and is valid /etc/hosts as-is.
+        const hostsBlock = [host, ...services.filter((s) => s.sub).map((s) => `${s.sub}.${host}`)]
+          .map((name) => `${serverIp}  ${name}`)
+          .join("\n");
         reporter.setResult({
           ok: true,
-          summary: `Platform installed (${environment}). Press any key to view status. · Browser cert warning? run: industream trust-ca`,
-          urls: [
-            { label: "Hub", url: `https://${prefix}${domain}` },
-            { label: "Grafana", url: `https://dashboard.${prefix}${domain}` },
-            { label: "DataCatalog", url: `https://datacatalog.${prefix}${domain}` },
-          ],
+          summary: `Platform installed (${environment}, ${plan === "community" ? "Community" : "Enterprise"}).`,
+          urls,
           credentials,
           secretsDir,
+          ...(selfSigned ? { tls: { selfSigned: true, caPath }, hostsBlock } : {}),
         });
         setStep("done");
         setProgressLine("");
