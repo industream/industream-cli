@@ -351,10 +351,15 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           await cloneSwarmRepo(platformDirectory, (line) => { progress(line); logLine(line); });
         }
 
-        // Compose runtime also needs the parallel deployment tree
-        // (industream-flowmaker) — the swarm clone doesn't include it.
-        if (runtimeName === "compose") {
-          status("Downloading compose deployment tree...");
+        // LEGACY compose tree (industream-flowmaker, PRIVATE repo): only the
+        // pre-unified `fm` path needs it. The unified tree (industream-stack/
+        // unified) renders compose SELF-CONTAINED (deploy.sh --runtime compose,
+        // runtime/compose/*.yml — verified: 0 references to industream-flowmaker).
+        // Cloning the private repo here was the SOLE clean-machine blocker for a
+        // compose install (no git creds → "could not read Username"). Skip it when
+        // the unified tree is present (always true after a fresh swarm-repo clone).
+        if (runtimeName === "compose" && !(await unifiedTreeExists(platformDirectory))) {
+          status("Downloading compose deployment tree (legacy fm path)...");
           await ensureComposeTree((line) => { progress(line); logLine(line); });
         }
         finishStep("clone");
