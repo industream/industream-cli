@@ -129,17 +129,28 @@ export function DeployDashboard({ reporter, title }: DeployDashboardProps): Reac
         </Pane>
       </Box>
 
-      {/* Bottom row: Log + Result — both scrollable */}
-      <Box>
-        <ScrollPane title="Log" color={BRAND_BLUE} width="55%" height={LOG_LINES} lines={collapseLog(snap.logs)} interactive />
-        <ScrollPane
-          title="Result"
-          color={resultColor}
-          width="45%"
-          height={LOG_LINES}
-          lines={snap.result ? resultLines(snap.result) : ["(deployment in progress)"]}
-        />
-      </Box>
+      {/* Bottom: while deploying = Log (scrollable) + Result placeholder side by
+          side; once done = a single FULL-WIDTH Result showing every line (no
+          scroll — the terminal's own scrollback handles any overflow). */}
+      {snap.result ? (
+        (() => {
+          const lines = resultLines(snap.result);
+          return (
+            <Pane title="Result" color={resultColor} width="100%" height={lines.length + 2}>
+              {lines.map((line, i) => (
+                <Text key={i} wrap="truncate-end">
+                  {line.length > 0 ? line : " "}
+                </Text>
+              ))}
+            </Pane>
+          );
+        })()
+      ) : (
+        <Box>
+          <ScrollPane title="Log" color={BRAND_BLUE} width="55%" height={LOG_LINES} lines={collapseLog(snap.logs)} interactive />
+          <ScrollPane title="Result" color={resultColor} width="45%" height={LOG_LINES} lines={["(deployment in progress)"]} />
+        </Box>
+      )}
     </Box>
   );
 }
