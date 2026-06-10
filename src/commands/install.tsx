@@ -742,10 +742,13 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
     runInstall();
   }, [introDone, configDone, workersChosen]);
 
-  // When done, any key press exits and launches status
+  // When done, Enter/q exits and launches status. We deliberately do NOT exit on
+  // arrow / PgUp / PgDn / g / G so those keys stay free to scroll the Log pane's
+  // ScrollPane (which reads them via its own useInput) even after completion.
   useInput(
-    async (_input, _key) => {
+    async (input, key) => {
       if (step !== "done") return;
+      if (!(key.return || input === "q" || input === " ")) return;
       exit();
       const { runStatus } = await import("./status.js");
       setTimeout(() => runStatus(), 200);
@@ -816,7 +819,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         />
         {isDone && (
           <Box marginTop={1}>
-            <Text color="blue">Press any key to view platform status...</Text>
+            <Text color="blue">Press Enter to view status · ↑/↓ scroll log</Text>
           </Box>
         )}
       </Box>
@@ -841,7 +844,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
             <Text dimColor>{modulesSummary}</Text>
           )}
           <Box marginTop={1}>
-            <Text color="blue">Press any key to view platform status...</Text>
+            <Text color="blue">Press Enter to view status · ↑/↓ scroll log</Text>
           </Box>
         </Box>
       )}
