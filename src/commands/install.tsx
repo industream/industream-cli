@@ -515,6 +515,22 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           (line) => logLine(line),
         );
         await new Promise((resolve) => setTimeout(resolve, 1500));
+        // EE additionally needs the Logto DB secrets (logto_db_url /
+        // logto_db_password) published as external swarm secrets — without them
+        // `docker stack deploy` aborts the WHOLE stack with
+        // "secret not found: <env>_logto_db_url" (0 services created). Provision
+        // them on swarm EE (idempotent; CE has no Logto).
+        if (plan !== "community" && runtimeName === "swarm") {
+          status("Creating Enterprise secrets (Logto)...");
+          await runScript(
+            join(resolved, "scripts/setup/create-secrets-ee.sh"),
+            ["--env", environment],
+            resolved,
+            (line) => progress(line),
+            (line) => logLine(line),
+          );
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
         finishStep("secrets");
 
         // Step 6: Render & deploy stack (swarm)
