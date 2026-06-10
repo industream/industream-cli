@@ -24,6 +24,11 @@ export interface Module {
   enterpriseVariant?: string;
   /** Keygen entitlement code required to enable this module (proprietary only) */
   entitlement?: string;
+  /**
+   * Mandatory worker: always deployed and non-deselectable in the install
+   * selector (platform-plumbing flow-boxes the minimum viable stack needs).
+   */
+  required?: boolean;
 }
 
 export interface ModuleRegistry {

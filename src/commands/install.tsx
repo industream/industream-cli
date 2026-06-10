@@ -156,7 +156,10 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           (module) =>
             (module.license === "bsl" || module.license === "apache") &&
             module.status === "ready" &&
-            module.serviceName,
+            module.serviceName &&
+            // worker-manager is infra (own group), excluded from the selector too,
+            // so it must not count toward the "all selected → omit --workers" check.
+            module.serviceName !== "worker-manager",
         )
         .map((module) => module.serviceName as string),
     [workerModules],

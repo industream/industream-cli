@@ -293,7 +293,8 @@
       "status": "ready",
       "serviceName": "worker-datacatalog-mapper",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/datacatalog-mapper"
+      "imagePattern": "flowmaker.boxes/datacatalog-mapper",
+      "required": true
     },
     {
       "id": "worker-data-logger",
@@ -303,7 +304,8 @@
       "status": "ready",
       "serviceName": "worker-data-logger",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/data-logger"
+      "imagePattern": "flowmaker.boxes/data-logger",
+      "required": true
     },
     {
       "id": "worker-timer",
@@ -313,7 +315,8 @@
       "status": "ready",
       "serviceName": "worker-timer",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/timer"
+      "imagePattern": "flowmaker.boxes/timer",
+      "required": true
     },
     {
       "id": "worker-js-expression",
@@ -323,7 +326,8 @@
       "status": "ready",
       "serviceName": "worker-js-expression",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/js-expression"
+      "imagePattern": "flowmaker.boxes/js-expression",
+      "required": true
     },
     {
       "id": "worker-postgres-client",
@@ -343,7 +347,8 @@
       "status": "ready",
       "serviceName": "worker-timeseries",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/timeseries-workers"
+      "imagePattern": "flowmaker.boxes/timeseries-workers",
+      "required": true
     },
     {
       "id": "worker-influx-client",
@@ -363,7 +368,8 @@
       "status": "ready",
       "serviceName": "worker-notifications",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/notification"
+      "imagePattern": "flowmaker.boxes/notification",
+      "required": true
     },
     {
       "id": "worker-test-data-generator",
@@ -393,7 +399,8 @@
       "status": "ready",
       "serviceName": "worker-enqueue",
       "stackFile": "docker-stack.workers.yml",
-      "imagePattern": "flowmaker.boxes/enqueue"
+      "imagePattern": "flowmaker.boxes/enqueue",
+      "required": true
     },
     {
       "id": "equation-solver",
