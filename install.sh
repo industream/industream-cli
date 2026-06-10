@@ -106,6 +106,18 @@ for tool in bc jq; do
   fi
 done
 
+# python3 + argon2 — the EE Logto seeder hashes the bootstrap user with Argon2i
+# via host python3 + argon2-cffi. Install it here (interactive sudo already in
+# play) so a from-scratch EE install seeds Logto without a manual step. Harmless
+# for CE. (The CLI also re-checks this before the EE seed as a fallback.)
+if ! python3 -c 'import argon2' &> /dev/null; then
+  echo -e "  ${YELLOW}Installing python3-argon2 (EE Logto seeding)...${NC}"
+  case "$PKG_MANAGER" in
+    apt) sudo apt-get install -y -qq python3-argon2 ;;
+    dnf|yum) sudo "$PKG_MANAGER" install -y -q python3-argon2-cffi ;;
+  esac
+fi
+
 # =============================================================================
 # Step 2: Docker
 # =============================================================================
