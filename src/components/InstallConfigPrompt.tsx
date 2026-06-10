@@ -28,7 +28,11 @@ export function InstallConfigPrompt({
   activateLicense,
   onComplete,
 }: InstallConfigPromptProps): React.ReactElement {
-  const [phase, setPhase] = useState<Phase>("menu");
+  // Start in a GUIDED walkthrough (runtime → license → domain → tls → review) so
+  // every field — crucially the license key — is presented once up front. When
+  // the walkthrough finishes, `guided` flips off and the menu allows free editing.
+  const [phase, setPhase] = useState<Phase>("edit-runtime");
+  const [guided, setGuided] = useState<boolean>(true);
   const [menuIndex, setMenuIndex] = useState<number>(0); // 0=runtime, 1=env, 2=license, 3=install
 
   const [runtime, setRuntime] = useState<Runtime>(defaultRuntime);
@@ -73,11 +77,18 @@ export function InstallConfigPrompt({
       if (key.return) {
         const newRuntime: Runtime = runtimeIndex === 0 ? "swarm" : "compose";
         setRuntime(newRuntime);
-        setPhase("menu");
-        setMenuIndex(1);
+        if (guided) {
+          setLicenseInput("");
+          setLicenseMessage("");
+          setPhase("edit-license");
+        } else {
+          setPhase("menu");
+          setMenuIndex(1);
+        }
         return;
       }
       if (key.escape) {
+        setGuided(false);
         setPhase("menu");
       }
       return;
@@ -86,10 +97,12 @@ export function InstallConfigPrompt({
     if (phase === "edit-domain") {
       if (key.return) {
         setDomain(domainInput.trim() || defaultDomain);
+        setTlsIndex(tls === "letsencrypt" ? 1 : 0);
         setPhase("edit-tls");
         return;
       }
       if (key.escape) {
+        setGuided(false);
         setPhase("menu");
         return;
       }
@@ -111,11 +124,13 @@ export function InstallConfigPrompt({
       if (key.return) {
         const newTls: TlsMode = tlsIndex === 0 ? "selfsigned" : "letsencrypt";
         setTls(newTls);
+        setGuided(false);          // walkthrough done → land on Install for review
         setPhase("menu");
         setMenuIndex(3);
         return;
       }
       if (key.escape) {
+        setGuided(false);
         setPhase("menu");
       }
       return;
@@ -123,13 +138,20 @@ export function InstallConfigPrompt({
 
     if (phase === "edit-license") {
       if (key.return) {
-        const key = licenseInput.trim();
-        if (key.length === 0) {
-          setPhase("menu");
+        const licenseKey = licenseInput.trim();
+        // Empty = stay Community Edition. In the guided walkthrough, advance to the
+        // domain step; otherwise return to the review menu.
+        if (licenseKey.length === 0) {
+          if (guided) {
+            setDomainInput(domain);
+            setPhase("edit-domain");
+          } else {
+            setPhase("menu");
+          }
           return;
         }
         setPhase("activating-license");
-        activateLicense(key)
+        activateLicense(licenseKey)
           .then((result) => {
             if (result.ok) {
               setLicenseLabel(result.label);
@@ -137,16 +159,28 @@ export function InstallConfigPrompt({
             } else {
               setLicenseMessage(`✗ Activation failed: ${result.error ?? "unknown error"}`);
             }
-            setPhase("menu");
-            setMenuIndex(2);
+            if (guided) {
+              setDomainInput(domain);
+              setPhase("edit-domain");
+            } else {
+              setPhase("menu");
+              setMenuIndex(2);
+            }
           })
           .catch((err) => {
             setLicenseMessage(`✗ Error: ${err instanceof Error ? err.message : String(err)}`);
-            setPhase("menu");
+            if (guided) {
+              setDomainInput(domain);
+              setPhase("edit-domain");
+            } else {
+              setPhase("menu");
+            }
           });
         return;
       }
       if (key.escape) {
+        // Esc skips the remaining walkthrough → review menu with current values.
+        setGuided(false);
         setPhase("menu");
         return;
       }
@@ -224,7 +258,11 @@ export function InstallConfigPrompt({
   if (phase === "edit-license") {
     return (
       <Box flexDirection="column" marginY={1}>
-        <Text bold>Activate license</Text>
+        <Text bold>License key</Text>
+        <Box flexDirection="column" marginLeft={2} marginTop={1}>
+          <Text dimColor>• Leave empty → Community Edition (free, 37 services)</Text>
+          <Text dimColor>• Paste a key → Enterprise Edition (premium workers + TimescaleDB)</Text>
+        </Box>
         <Box marginTop={1}>
           <Text color="cyan">? </Text>
           <Text bold>License key: </Text>
@@ -234,7 +272,7 @@ export function InstallConfigPrompt({
           </Text>
         </Box>
         <Box marginTop={1}>
-          <Text dimColor>Paste your license key then Enter (Esc to cancel, empty to skip)</Text>
+          <Text dimColor>Enter to confirm · empty = Community · Esc to skip to review</Text>
         </Box>
       </Box>
     );
