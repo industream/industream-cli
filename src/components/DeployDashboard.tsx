@@ -1,24 +1,51 @@
 // src/components/DeployDashboard.tsx
 // Structured 4-pane deploy view (Ink). Subscribes to a DeployReporter and
 // renders: Steps · Service health · Log · Result. Orchestrator-agnostic.
+// Log + Result use ScrollPane (scrollbar gutter + "▲ N more"), and the noisy
+// swarm "verify: Waiting…" lines are collapsed via collapseLog.
 
 import React, { useEffect, useState } from "react";
 import { Box, Text } from "ink";
+import { ScrollPane, collapseLog } from "./ScrollPane.js";
 import type {
   DeployReporter,
   DeploySnapshot,
+  DeployResultInfo,
   StepStatus,
 } from "../lib/deploy-reporter.js";
 
+// Industream brand blue (NOT cyan) — Ink renders hex via truecolor.
+const BRAND_BLUE = "#052FAD";
+
 const STEP_ICON: Record<StepStatus, { icon: string; color: string }> = {
   pending: { icon: "○", color: "gray" },
-  running: { icon: "⚙", color: "blueBright" },
+  running: { icon: "⚙", color: BRAND_BLUE },
   done: { icon: "✓", color: "green" },
   failed: { icon: "✗", color: "red" },
   skipped: { icon: "–", color: "gray" },
 };
 
 const LOG_LINES = 12;
+
+// Flatten the structured result into plain lines for the scrollable Result pane.
+function resultLines(result: DeployResultInfo): string[] {
+  const lines: string[] = [
+    result.ok ? "✓ Deployment complete" : "✗ Deployment failed",
+    result.summary,
+    "",
+  ];
+  for (const url of result.urls) {
+    lines.push(url.label, `  ${url.url}`);
+  }
+  if (result.credentials && result.credentials.length > 0) {
+    lines.push("", "🔑 Save these now (admin):");
+    for (const cred of result.credentials) {
+      lines.push(`  ${cred.label}: ${cred.user} / ${cred.pass}`);
+    }
+    if (result.secretsDir) lines.push(`  ↳ all: ${result.secretsDir}`);
+  }
+  return lines;
+}
 
 interface DeployDashboardProps {
   reporter: DeployReporter;
@@ -45,7 +72,7 @@ export function DeployDashboard({ reporter, title }: DeployDashboardProps): Reac
 
       {/* Top row: Steps + Service health */}
       <Box>
-        <Pane title="Steps" color="cyan" width="55%">
+        <Pane title="Steps" color={BRAND_BLUE} width="55%">
           {snap.steps.length === 0 ? (
             <Text color="gray">(starting…)</Text>
           ) : (
@@ -59,7 +86,7 @@ export function DeployDashboard({ reporter, title }: DeployDashboardProps): Reac
         </Pane>
         <Pane
           title={`Service health${snap.services.length ? `  (${converged}/${snap.services.length})` : ""}`}
-          color="cyan"
+          color={BRAND_BLUE}
           width="45%"
         >
           {snap.services.length === 0 ? (
@@ -74,48 +101,16 @@ export function DeployDashboard({ reporter, title }: DeployDashboardProps): Reac
         </Pane>
       </Box>
 
-      {/* Bottom row: Log + Result */}
+      {/* Bottom row: Log + Result — both scrollable */}
       <Box>
-        <Pane title="Log" color="blue" width="55%" height={LOG_LINES + 2}>
-          {snap.logs.slice(-LOG_LINES).map((line, i) => (
-            <Text key={i} color="gray" wrap="truncate-end">
-              {line}
-            </Text>
-          ))}
-        </Pane>
-        <Pane title="Result" color={resultColor} width="45%" height={LOG_LINES + 2}>
-          {!snap.result ? (
-            <Text color="gray">(deployment in progress)</Text>
-          ) : (
-            <>
-              <Text color={snap.result.ok ? "green" : "red"} bold>
-                {snap.result.ok ? "✓ Deployment complete" : "✗ Deployment failed"}
-              </Text>
-              <Text color="gray">{snap.result.summary}</Text>
-              <Box marginTop={1} flexDirection="column">
-                {snap.result.urls.map((u) => (
-                  <Box key={u.label} flexDirection="column">
-                    <Text color="cyan">{u.label}</Text>
-                    <Text wrap="truncate-end">{u.url}</Text>
-                  </Box>
-                ))}
-              </Box>
-              {snap.result.credentials && snap.result.credentials.length > 0 ? (
-                <Box marginTop={1} flexDirection="column">
-                  <Text color="yellow" bold>🔑 Save these now (admin):</Text>
-                  {snap.result.credentials.map((c) => (
-                    <Text key={c.label}>
-                      <Text bold>{c.label}</Text> {c.user} / {c.pass}
-                    </Text>
-                  ))}
-                  {snap.result.secretsDir ? (
-                    <Text color="gray">↳ all: {snap.result.secretsDir}</Text>
-                  ) : null}
-                </Box>
-              ) : null}
-            </>
-          )}
-        </Pane>
+        <ScrollPane title="Log" color={BRAND_BLUE} width="55%" height={LOG_LINES} lines={collapseLog(snap.logs)} />
+        <ScrollPane
+          title="Result"
+          color={resultColor}
+          width="45%"
+          height={LOG_LINES}
+          lines={snap.result ? resultLines(snap.result) : ["(deployment in progress)"]}
+        />
       </Box>
     </Box>
   );
