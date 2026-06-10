@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { render, Text, Box, useApp, useInput } from "ink";
 import { BoltBuilder } from "../components/BoltBuilder.js";
 import { Banner } from "../components/Banner.js";
@@ -7,6 +7,7 @@ import { DeployDashboard } from "../components/DeployDashboard.js";
 import { DeployReporter } from "../lib/deploy-reporter.js";
 import type { DeployStep } from "../lib/deploy-reporter.js";
 import { InstallConfigPrompt } from "../components/InstallConfigPrompt.js";
+import { WorkerSelector } from "../components/WorkerSelector.js";
 import { saveConfig } from "../lib/config.js";
 import { isDockerAvailable, isSwarmActive, getSwarmServices } from "../lib/docker.js";
 import {
@@ -142,6 +143,30 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
   const [runtimeName, setRuntimeName] = useState<string>(cliRuntime === "compose" ? "compose" : "swarm");
   const [licenseLabel, setLicenseLabel] = useState<string>("Community (no license)");
 
+  // Worker fleet catalog (modules tagged category "Workers") — drives the
+  // interactive WorkerSelector and the deploy.sh --workers allowlist (Phase 2).
+  const workerModules = useMemo(
+    () => loadModuleRegistry().modules.filter((module) => module.category === "Workers"),
+    [],
+  );
+  const communityWorkerServices = useMemo(
+    () =>
+      workerModules
+        .filter(
+          (module) =>
+            (module.license === "bsl" || module.license === "apache") &&
+            module.status === "ready" &&
+            module.serviceName,
+        )
+        .map((module) => module.serviceName as string),
+    [workerModules],
+  );
+  // Headless (no prompt) keeps every worker. `selectedWorkers === null` ⇒ deploy
+  // all (omit --workers). Only the swarm path honours the selection (compose uses
+  // fm-caddy.sh), so the selector is skipped for compose via an effect below.
+  const [workersChosen, setWorkersChosen] = useState<boolean>(!needsPrompt);
+  const [selectedWorkers, setSelectedWorkers] = useState<string[] | null>(null);
+
   // The 4-pane DeployDashboard owns the screen during execution when we have a
   // TTY. In CI / non-TTY we fall back to the plain InstallSteps + status lines
   // (Ink still renders, but the dashboard panes are noise without a terminal).
@@ -149,6 +174,12 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
   // A single, stable reporter for the whole install run (mirrors deploy.ts).
   const reporterRef = useRef<DeployReporter>(new DeployReporter());
   const reporter = reporterRef.current;
+
+  // The worker selector only applies to the swarm deploy.sh path. For compose
+  // (fm-caddy.sh, which deploys every worker) skip it once config is confirmed.
+  useEffect(() => {
+    if (configDone && runtimeName !== "swarm") setWorkersChosen(true);
+  }, [configDone, runtimeName]);
 
   // Load cached license info once for the interactive menu
   useEffect(() => {
@@ -189,7 +220,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
   }
 
   useEffect(() => {
-    if (!introDone || !configDone) return;
+    if (!introDone || !configDone || !workersChosen) return;
     async function runInstall() {
       // ---- Progress sinks: update both the reporter (4-pane dashboard) and
       // the legacy InstallSteps state (plain non-TTY fallback). The reporter is
@@ -543,8 +574,18 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           try {
             await runScript(
               join(unified, "scripts/deploy.sh"),
-              ["--runtime", "swarm", "--edition", plan === "community" ? "ce" : "ee",
-               "--env", environment, "--stack", stackName],
+              [
+                "--runtime", "swarm", "--edition", plan === "community" ? "ce" : "ee",
+                "--env", environment, "--stack", stackName,
+                // Per-worker selection (Phase 2): pass --workers only when the
+                // operator chose a strict subset of the community workers. A full
+                // selection (or headless skip → selectedWorkers null) omits it, so
+                // deploy.sh deploys all. An empty subset sends a sentinel that
+                // matches no service → the workers files filter to nothing.
+                ...(selectedWorkers && selectedWorkers.length !== communityWorkerServices.length
+                  ? ["--workers", selectedWorkers.length ? selectedWorkers.join(",") : "__none__"]
+                  : []),
+              ],
               unified,
               (line) => progress(line),
               (line) => logLine(line),
@@ -686,7 +727,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
       }
     }
     runInstall();
-  }, [introDone, configDone]);
+  }, [introDone, configDone, workersChosen]);
 
   // When done, any key press exits and launches status
   useInput(
@@ -727,6 +768,23 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
             setTls(config.tls);
             setRuntimeName(config.runtime);
             setConfigDone(true);
+          }}
+        />
+      </Box>
+    );
+  }
+
+  // Worker fleet selection (swarm + interactive only; compose/headless skip it).
+  if (!workersChosen) {
+    return (
+      <Box flexDirection="column">
+        <Banner />
+        <WorkerSelector
+          workers={workerModules}
+          plan={currentPlan}
+          onComplete={(services) => {
+            setSelectedWorkers(services);
+            setWorkersChosen(true);
           }}
         />
       </Box>
