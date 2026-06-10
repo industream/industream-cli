@@ -45,6 +45,7 @@ export function WorkerSelector({
   // Default selection = every unlocked worker (so the default deploy is unchanged).
   const [selected, setSelected] = useState<Set<string>>(() => new Set(unlockedServices));
   const [cursor, setCursor] = useState<number>(0);
+  const VISIBLE = 12; // rows shown before the list windows/scrolls
 
   useInput((input, key) => {
     if (key.upArrow) {
@@ -53,6 +54,14 @@ export function WorkerSelector({
     }
     if (key.downArrow) {
       setCursor((index) => Math.min(items.length - 1, index + 1));
+      return;
+    }
+    if (key.pageUp) {
+      setCursor((index) => Math.max(0, index - VISIBLE));
+      return;
+    }
+    if (key.pageDown) {
+      setCursor((index) => Math.min(items.length - 1, index + VISIBLE));
       return;
     }
     if (input === " ") {
@@ -85,26 +94,42 @@ export function WorkerSelector({
     <Box flexDirection="column" marginY={1}>
       <Text bold>Select workers to deploy</Text>
       <Box marginTop={1}>
-        <Text dimColor>Space toggle · &apos;a&apos; all/none · Enter confirm · [✓] required (locked)</Text>
+        <Text dimColor>Space toggle · &apos;a&apos; all/none · ↑/↓ PgUp/PgDn · Enter confirm · [✓] required</Text>
       </Box>
       <Box flexDirection="column" marginTop={1}>
-        {items.map((module, index) => {
-          const service = module.serviceName as string;
-          const unlocked = isUnlocked(module);
-          const checked = selected.has(service);
-          const atCursor = index === cursor;
-          const required = isRequired(module);
-          const box = !unlocked ? "🔒" : required ? "[✓]" : checked ? "[x]" : "[ ]";
+        {(() => {
+          // Window the list around the cursor so a long fleet (~19 workers +
+          // premium) doesn't overflow a short terminal. Keeps the cursor in view.
+          const maxStart = Math.max(0, items.length - VISIBLE);
+          const start = Math.max(0, Math.min(cursor - Math.floor(VISIBLE / 2), maxStart));
+          const windowItems = items.slice(start, start + VISIBLE);
+          const above = start;
+          const below = items.length - (start + windowItems.length);
           return (
-            <Text key={module.id} color={atCursor ? BRAND_BLUE : undefined} dimColor={!unlocked}>
-              {atCursor ? "❯ " : "  "}
-              {box} {module.name}
-              {required ? <Text dimColor> (required)</Text> : ""}
-              {module.license === "proprietary" ? <Text dimColor> (premium)</Text> : ""}
-              {module.status !== "ready" ? <Text dimColor> — {module.status}</Text> : ""}
-            </Text>
+            <>
+              {above > 0 ? <Text dimColor>{"  "}▲ {above} more above</Text> : null}
+              {windowItems.map((module, i) => {
+                const index = start + i;
+                const service = module.serviceName as string;
+                const unlocked = isUnlocked(module);
+                const checked = selected.has(service);
+                const atCursor = index === cursor;
+                const required = isRequired(module);
+                const box = !unlocked ? "🔒" : required ? "[✓]" : checked ? "[x]" : "[ ]";
+                return (
+                  <Text key={module.id} color={atCursor ? BRAND_BLUE : undefined} dimColor={!unlocked}>
+                    {atCursor ? "❯ " : "  "}
+                    {box} {module.name}
+                    {required ? <Text dimColor> (required)</Text> : ""}
+                    {module.license === "proprietary" ? <Text dimColor> (premium)</Text> : ""}
+                    {module.status !== "ready" ? <Text dimColor> — {module.status}</Text> : ""}
+                  </Text>
+                );
+              })}
+              {below > 0 ? <Text dimColor>{"  "}▼ {below} more below</Text> : null}
+            </>
           );
-        })}
+        })()}
       </Box>
       <Box marginTop={1}>
         <Text color={BRAND_BLUE}>{selected.size}</Text>
