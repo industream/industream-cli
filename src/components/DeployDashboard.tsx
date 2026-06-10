@@ -25,7 +25,10 @@ const STEP_ICON: Record<StepStatus, { icon: string; color: string }> = {
   skipped: { icon: "–", color: "gray" },
 };
 
-const LOG_LINES = 12;
+// The Log/Result panes are the tall ones (streaming output); the top row
+// (Steps + Service health) is kept compact so it doesn't dwarf them.
+const LOG_LINES = 16;
+const HEALTH_LINES = 9; // max non-converged services listed before "…+N more"
 
 // Flatten the structured result into plain lines for the scrollable Result pane.
 function resultLines(result: DeployResultInfo): string[] {
@@ -70,8 +73,9 @@ export function DeployDashboard({ reporter, title }: DeployDashboardProps): Reac
     <Box flexDirection="column" width="100%">
       <Text bold>{title}</Text>
 
-      {/* Top row: Steps + Service health */}
-      <Box>
+      {/* Top row: Steps + Service health. alignItems flex-start so the short
+          Steps pane is NOT stretched to the height of Service health. */}
+      <Box alignItems="flex-start">
         <Pane title="Steps" color={BRAND_BLUE} width="55%">
           {snap.steps.length === 0 ? (
             <Text color="gray">(starting…)</Text>
@@ -91,13 +95,28 @@ export function DeployDashboard({ reporter, title }: DeployDashboardProps): Reac
         >
           {snap.services.length === 0 ? (
             <Text color="gray">(waiting for services…)</Text>
-          ) : (
-            snap.services.map((s) => (
-              <Text key={s.name} color={s.converged ? "green" : "yellow"}>
-                {s.converged ? "✓" : "…"} {s.name} {s.ready}/{s.total}
-              </Text>
-            ))
-          )}
+          ) : (() => {
+            // Keep the pane compact: list only services still converging (the
+            // actionable ones), capped, so 40+ green services don't balloon the
+            // row and dwarf the Log pane.
+            const pending = snap.services.filter((s) => !s.converged);
+            if (pending.length === 0) {
+              return <Text color="green">✓ all {snap.services.length} services converged</Text>;
+            }
+            const shown = pending.slice(0, HEALTH_LINES);
+            return (
+              <>
+                {shown.map((s) => (
+                  <Text key={s.name} color="yellow">
+                    … {s.name} {s.ready}/{s.total}
+                  </Text>
+                ))}
+                {pending.length > shown.length ? (
+                  <Text dimColor>…+{pending.length - shown.length} more converging</Text>
+                ) : null}
+              </>
+            );
+          })()}
         </Pane>
       </Box>
 

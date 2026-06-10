@@ -585,19 +585,34 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           };
           const healthTimer = setInterval(() => { if (pollingHealth) void pollHealth(); }, 3000);
           try {
+            const ee = plan !== "community";
+            const premiumWorkerServices = workerModules
+              .filter((m) => m.license === "proprietary" && m.serviceName)
+              .map((m) => m.serviceName as string);
+            // EE (Phase 3a): add the premium worker + TimescaleDB groups so they
+            // deploy under any valid EE license. Per-entitlement gating is Phase 3b.
+            const groupArgs = ee
+              ? ["--groups", "core flowmaker datacatalog workers workers-premium data monitoring timescale"]
+              : [];
+            // Worker allowlist: the selector picks community workers; in EE the
+            // premium workers are always appended so the workers-premium group is
+            // not filtered away. A null selection (headless) deploys everything.
+            const workerArgs = ((): string[] => {
+              if (!selectedWorkers) return [];
+              const list = ee
+                ? Array.from(new Set([...selectedWorkers, ...premiumWorkerServices]))
+                : selectedWorkers;
+              if (list.length === 0) return ["--workers", "__none__"];
+              if (!ee && list.length === communityWorkerServices.length) return [];
+              return ["--workers", list.join(",")];
+            })();
             await runScript(
               join(unified, "scripts/deploy.sh"),
               [
-                "--runtime", "swarm", "--edition", plan === "community" ? "ce" : "ee",
+                "--runtime", "swarm", "--edition", ee ? "ee" : "ce",
                 "--env", environment, "--stack", stackName,
-                // Per-worker selection (Phase 2): pass --workers only when the
-                // operator chose a strict subset of the community workers. A full
-                // selection (or headless skip → selectedWorkers null) omits it, so
-                // deploy.sh deploys all. An empty subset sends a sentinel that
-                // matches no service → the workers files filter to nothing.
-                ...(selectedWorkers && selectedWorkers.length !== communityWorkerServices.length
-                  ? ["--workers", selectedWorkers.length ? selectedWorkers.join(",") : "__none__"]
-                  : []),
+                ...groupArgs,
+                ...workerArgs,
               ],
               unified,
               (line) => progress(line),
