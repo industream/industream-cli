@@ -383,6 +383,16 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
         const premiumCount = proprietaryModules.length;
         const totalCount = communityCount + premiumCount;
 
+        // Reflect the worker selection (Phase 2): the catalog counts above are the
+        // FULL set; subtract the workers the operator deselected so the reported
+        // numbers match what is actually deployed (the deploy itself already
+        // honours the selection via deploy.sh --workers).
+        const deselectedWorkers = selectedWorkers
+          ? communityWorkerServices.filter((service) => !selectedWorkers.includes(service)).length
+          : 0;
+        const deployedCommunity = communityCount - deselectedWorkers;
+        const deployedTotal = totalCount - deselectedWorkers;
+
         const plan = (licenseResult.cache?.plan ?? "community") as Plan;
         setAllModules(moduleRegistry.modules);
         setCurrentPlan(plan);
@@ -390,14 +400,14 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
 
         if (isLicensed) {
           const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
-          status(`Deploying all ${totalCount} modules (${planLabel} license)`);
-          setModulesSummary(`${totalCount} modules deployed.`);
+          status(`Deploying ${deployedTotal} modules (${planLabel} license)`);
+          setModulesSummary(`${deployedTotal} modules deployed.`);
         } else {
           status(
-            `Deploying ${communityCount} community modules (${premiumCount} premium modules available with license)`,
+            `Deploying ${deployedCommunity} community modules (${premiumCount} premium modules available with license)`,
           );
           setModulesSummary(
-            `${communityCount} modules deployed. ${premiumCount} premium modules available with a license.`,
+            `${deployedCommunity} modules deployed. ${premiumCount} premium modules available with a license.`,
           );
         }
 
