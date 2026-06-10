@@ -30,10 +30,17 @@ export function WorkerSelector({
       module.license === "apache" ||
       (module.license === "proprietary" && isLicensed));
 
-  const items = workers.filter((module) => Boolean(module.serviceName));
+  // worker-manager is platform infra (its own group, not a flow-box in
+  // workers.yml) — excluded so toggling it can't mislead (it has no effect).
+  const items = workers.filter(
+    (module) => Boolean(module.serviceName) && module.serviceName !== "worker-manager",
+  );
   const unlockedServices = items
     .filter(isUnlocked)
     .map((module) => module.serviceName as string);
+  // Required = mandatory platform-plumbing workers: always selected, non-togglable.
+  const isRequired = (module: Module): boolean => module.required === true && isUnlocked(module);
+  const requiredServices = items.filter(isRequired).map((module) => module.serviceName as string);
 
   // Default selection = every unlocked worker (so the default deploy is unchanged).
   const [selected, setSelected] = useState<Set<string>>(() => new Set(unlockedServices));
@@ -50,7 +57,7 @@ export function WorkerSelector({
     }
     if (input === " ") {
       const module = items[cursor];
-      if (!module?.serviceName || !isUnlocked(module)) return;
+      if (!module?.serviceName || !isUnlocked(module) || isRequired(module)) return;
       const service = module.serviceName;
       setSelected((previous) => {
         const next = new Set(previous);
@@ -61,8 +68,11 @@ export function WorkerSelector({
       return;
     }
     if (input === "a") {
+      // Toggle between "all unlocked" and "required only" (required can't be off).
       setSelected((previous) =>
-        previous.size === unlockedServices.length ? new Set() : new Set(unlockedServices),
+        previous.size === unlockedServices.length
+          ? new Set(requiredServices)
+          : new Set(unlockedServices),
       );
       return;
     }
@@ -75,7 +85,7 @@ export function WorkerSelector({
     <Box flexDirection="column" marginY={1}>
       <Text bold>Select workers to deploy</Text>
       <Box marginTop={1}>
-        <Text dimColor>Space toggle · &apos;a&apos; all/none · Enter confirm · default = all included</Text>
+        <Text dimColor>Space toggle · &apos;a&apos; all/none · Enter confirm · [✓] required (locked)</Text>
       </Box>
       <Box flexDirection="column" marginTop={1}>
         {items.map((module, index) => {
@@ -83,11 +93,13 @@ export function WorkerSelector({
           const unlocked = isUnlocked(module);
           const checked = selected.has(service);
           const atCursor = index === cursor;
-          const box = !unlocked ? "🔒" : checked ? "[x]" : "[ ]";
+          const required = isRequired(module);
+          const box = !unlocked ? "🔒" : required ? "[✓]" : checked ? "[x]" : "[ ]";
           return (
             <Text key={module.id} color={atCursor ? BRAND_BLUE : undefined} dimColor={!unlocked}>
               {atCursor ? "❯ " : "  "}
               {box} {module.name}
+              {required ? <Text dimColor> (required)</Text> : ""}
               {module.license === "proprietary" ? <Text dimColor> (premium)</Text> : ""}
               {module.status !== "ready" ? <Text dimColor> — {module.status}</Text> : ""}
             </Text>
