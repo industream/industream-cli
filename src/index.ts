@@ -133,12 +133,15 @@ program
   .command("install")
   .description("Install the Industream platform")
   .option("--env <environment>", "Environment to deploy (prod, dev, staging)", "prod")
-  .option("--domain <domain>", "Platform domain name", "industream.platform.lan")
+  // NO commander default on --domain / --runtime on purpose: a default makes the
+  // option always "defined", which forces needsPrompt=false and SILENTLY SKIPS the
+  // whole interactive wizard (runtime / license key / worker selector). The
+  // fallback defaults live in InstallWizard (cliDomain ?? "…lan", runtime → swarm).
+  .option("--domain <domain>", "Platform domain name (default: industream.platform.lan)")
   .option("--tls <mode>", "TLS mode (selfsigned, letsencrypt). Default: selfsigned")
   .option(
     "--runtime <runtime>",
     "Container orchestrator (swarm or compose). Locked in .env. Default: swarm",
-    "swarm",
   )
   .action((options) => {
     runInstall(options.env, options.domain, options.tls, options.runtime);
