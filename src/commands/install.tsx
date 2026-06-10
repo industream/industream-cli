@@ -117,6 +117,42 @@ async function runScript(
   await subprocess;
 }
 
+// Ensure python3 + argon2-cffi (the `argon2` module) is available — deploy.sh's
+// EE Logto seeder hashes the bootstrap user with Argon2i via host python3, and
+// silently skips ALL Logto seeding when it's absent. Try the host package
+// manager (passwordless sudo); fail fast with the manual command otherwise so the
+// operator never ends up with a deployed-but-unseeded Logto (invalid_client).
+async function ensureArgon2(log: (line: string) => void): Promise<void> {
+  const hasArgon2 = (): Promise<boolean> =>
+    execa("python3", ["-c", "import argon2"]).then(() => true).catch(() => false);
+  if (await hasArgon2()) return;
+  log("python3-argon2 missing (needed for Logto seeding) — installing…");
+  const installers: { mgr: string; args: string[] }[] = [
+    { mgr: "apt-get", args: ["install", "-y", "python3-argon2"] },
+    { mgr: "dnf", args: ["install", "-y", "python3-argon2-cffi"] },
+    { mgr: "apk", args: ["add", "py3-argon2-cffi"] },
+    { mgr: "pacman", args: ["-S", "--noconfirm", "python-argon2_cffi"] },
+  ];
+  for (const { mgr, args } of installers) {
+    const present = await execa("sh", ["-c", `command -v ${mgr}`]).then(() => true).catch(() => false);
+    if (!present) continue;
+    await execa("sudo", ["-n", mgr, ...args]).then(
+      () => log(`  ran: sudo ${mgr} ${args.join(" ")}`),
+      () => log(`  (sudo ${mgr} failed — passwordless sudo unavailable?)`),
+    );
+    break;
+  }
+  if (!(await hasArgon2())) {
+    throw new Error(
+      "EE deploy needs python3-argon2 for Logto seeding, and it could not be " +
+        "auto-installed. Install it and re-run `industream install`:\n" +
+        "  sudo apt-get install -y python3-argon2     # Debian/Ubuntu\n" +
+        "  sudo dnf install -y python3-argon2-cffi    # Fedora/RHEL",
+    );
+  }
+  log("✓ python3-argon2 available");
+}
+
 function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, runtime: cliRuntime }: { environment?: string; domain?: string; tls?: string; runtime?: string }): React.ReactElement {
   const { exit } = useApp();
   const [introDone, setIntroDone] = useState(false);
@@ -534,6 +570,10 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
             (line) => progress(line),
             (line) => logLine(line),
           );
+          // seed_ee (in deploy.sh) hashes the Logto bootstrap-user password with
+          // Argon2i via host python3 + argon2-cffi; without it ALL Logto seeding is
+          // skipped → no OIDC app → login fails (invalid_client/400). Ensure it now.
+          await ensureArgon2((line) => logLine(line));
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
         finishStep("secrets");
