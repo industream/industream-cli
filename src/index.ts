@@ -11,6 +11,7 @@ import { runUpdate } from "./commands/update.js";
 import { runConfig } from "./commands/config.js";
 import { runLicense } from "./commands/license.js";
 import { runUninstall } from "./commands/uninstall.js";
+import { runState } from "./commands/state.js";
 import { runTrustCa } from "./commands/trust-ca.js";
 import { runWorkerAdd, runWorkerList, runWorkerRemove } from "./commands/worker.js";
 import { runMenu } from "./commands/menu.js";
@@ -102,6 +103,24 @@ program
   .option("--runtime <runtime>")
   .action((options) => {
     runStop(options.env, options.runtime);
+  });
+
+program
+  .command("state <subcommand>")
+  .description(
+    "Versioned deploy state: snapshot live Portainer stacks, render desired state, diff, log",
+  )
+  .option("--env <environment>", "Environment (default: prod)")
+  .option("--edition <edition>", "Edition for render (ce|ee)")
+  .option("--baked", "Render with literal values (no ${VARS})")
+  .option("--path <path>", "Platform install path (default: ~/industream-platform)")
+  .action((subcommand, options) => {
+    runState(subcommand, {
+      env: options.env,
+      edition: options.edition,
+      baked: options.baked,
+      path: options.path,
+    });
   });
 
 program
