@@ -153,7 +153,7 @@ async function ensureArgon2(log: (line: string) => void): Promise<void> {
   log("✓ python3-argon2 available");
 }
 
-function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, runtime: cliRuntime }: { environment?: string; domain?: string; tls?: string; runtime?: string }): React.ReactElement {
+function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, runtime: cliRuntime, withPortainer = false }: { environment?: string; domain?: string; tls?: string; runtime?: string; withPortainer?: boolean }): React.ReactElement {
   const { exit } = useApp();
   const [introDone, setIntroDone] = useState(false);
   const [step, setStep] = useState<Step>("prerequisites");
@@ -657,9 +657,14 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
               .map((m) => m.serviceName as string);
             // EE (Phase 3a): add the premium worker + TimescaleDB groups so they
             // deploy under any valid EE license. Per-entitlement gating is Phase 3b.
-            const groupArgs = ee
-              ? ["--groups", "core flowmaker datacatalog workers workers-premium data monitoring timescale"]
-              : [];
+            // --with-portainer appends the optional `portainer` ops-console group
+            // (CE *and* EE). CE must then pass an explicit --groups (deploy.sh's CE
+            // default omits portainer); plain CE keeps that default (groupArgs=[]).
+            const baseGroups = ee
+              ? "core flowmaker datacatalog workers workers-premium data monitoring timescale"
+              : "core flowmaker datacatalog workers data monitoring";
+            const groupSet = withPortainer ? `${baseGroups} portainer` : baseGroups;
+            const groupArgs = ee || withPortainer ? ["--groups", groupSet] : [];
             // Worker allowlist: the selector picks community workers; in EE the
             // premium workers are always appended so the workers-premium group is
             // not filtered away. A null selection (headless) deploys everything.
@@ -1012,6 +1017,7 @@ export async function runInstall(
   domain?: string,
   tls?: string,
   runtime?: string,
+  withPortainer?: boolean,
 ): Promise<void> {
   const alreadyInstalled = await isPlatformInstalled("~/industream-platform");
   if (alreadyInstalled) {
@@ -1027,6 +1033,7 @@ export async function runInstall(
       domain={domain}
       tls={tls}
       runtime={runtime}
+      withPortainer={withPortainer ?? false}
     />,
   );
 }
