@@ -148,12 +148,11 @@ industream state diff        # Compare live vs desired state
 industream state log         # Review the deployment history
 ```
 
-> **Install integration:** the auto-baseline behaviour — `industream install`
-> (Swarm) recording a deploy-state baseline at the end of the wizard and pointing
-> the install summary at `industream state diff` / `industream state log` — is
-> forthcoming and not yet part of the current `main`. For now, run
-> `industream state init` and `industream state snapshot` manually after an
-> install to record a baseline.
+> **Install integration:** `industream install` (Swarm) automatically records a
+> deploy-state baseline at the end of the wizard — a "Record deployment state"
+> step runs `deploy-state.sh init` + `render`, and the install summary points to
+> `industream state diff` / `industream state log`. It is best-effort (a failure
+> never fails the install) and skipped on compose (deploy-state is Swarm-only).
 
 ---
 
