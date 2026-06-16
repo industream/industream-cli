@@ -6,6 +6,7 @@
 // commands can be switched to this runtime in a follow-up.
 import { execa } from "execa";
 import { createInterface } from "node:readline";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { IndustreamConfig } from "../config.js";
 import {
@@ -117,11 +118,18 @@ export class SwarmRuntime implements Runtime {
     // Skip memory check in non-interactive CLI mode (no TTY for confirmation prompt)
     args.push("--skip-memory-check");
 
+    // Workers authenticate to the DataCatalog backend (:8003) with the static
+    // X-Api-Key. The secret is mounted as a file for the API, but the worker
+    // flow-boxes read it as the FM_DATACATALOG_API_KEY env var — so inject the
+    // generated secret value into the stack deploy env for `docker stack deploy`
+    // variable substitution. Empty/missing key → no header is sent.
+    const deployEnv = await this.resolveWorkerDataCatalogEnv(platformDir, env);
+
     // Without a reporter, keep the original throw-on-failure behaviour.
     const stackOk = await this.runStep(
       reporter, "stack", `Deploying industream-${env}`,
       join(platformDir, "scripts", "deploy-swarm.sh"), args, platformDir,
-      { allowFail: Boolean(reporter) },
+      { allowFail: Boolean(reporter), env: deployEnv },
     );
 
     if (!reporter) return;
@@ -148,6 +156,32 @@ export class SwarmRuntime implements Runtime {
     });
   }
 
+  /**
+   * Read the generated `datacatalog_api_key` secret value off disk and expose
+   * it as `FM_DATACATALOG_API_KEY` for the stack deploy. create-secrets.sh
+   * materialises it at `secrets/<env>/<name>` (canonical) with a flat
+   * `secrets/<name>` legacy fallback. Returns an empty object when absent, so
+   * the deploy still works against an un-authenticated DataCatalog.
+   */
+  private async resolveWorkerDataCatalogEnv(
+    platformDir: string,
+    env: Environment,
+  ): Promise<Record<string, string>> {
+    const candidates = [
+      join(platformDir, "secrets", env, "datacatalog_api_key"),
+      join(platformDir, "secrets", "datacatalog_api_key"),
+    ];
+    for (const path of candidates) {
+      try {
+        const value = (await readFile(path, "utf-8")).trim();
+        if (value) return { FM_DATACATALOG_API_KEY: value };
+      } catch {
+        // try the next candidate
+      }
+    }
+    return {};
+  }
+
   /** Run one phase. With a reporter: stream output to the log pane and toggle
    * the step. Without: preserve the original inline stdout behaviour. */
   private async runStep(
@@ -157,11 +191,12 @@ export class SwarmRuntime implements Runtime {
     cmd: string,
     args: string[],
     cwd: string,
-    opts: { allowFail?: boolean } = {},
+    opts: { allowFail?: boolean; env?: Record<string, string> } = {},
   ): Promise<boolean> {
+    const execaEnv = opts.env ? { ...process.env, ...opts.env } : undefined;
     if (reporter) {
       reporter.step(id, "running");
-      const child = execa(cmd, args, { cwd });
+      const child = execa(cmd, args, { cwd, env: execaEnv });
       const pump = (buf: Buffer) =>
         buf.toString().split("\n").forEach((l) => { if (l.trim()) reporter.log(l); });
       child.stdout?.on("data", pump);
@@ -178,7 +213,7 @@ export class SwarmRuntime implements Runtime {
     }
     console.log(`\n  ${label}...`);
     try {
-      await execa(cmd, args, { cwd, stdio: "inherit" });
+      await execa(cmd, args, { cwd, stdio: "inherit", env: execaEnv });
       return true;
     } catch (err) {
       if (opts.allowFail) {
