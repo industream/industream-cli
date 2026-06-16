@@ -56,6 +56,13 @@ function resultLines(result: DeployResultInfo): string[] {
     lines.push("", "📝 Add to /etc/hosts on your workstation:");
     for (const l of result.hostsBlock.split("\n")) lines.push(`  ${l}`);
   }
+  if (result.deployState) {
+    lines.push("", "🗂  Deployment state (versioned, secrets scrubbed):");
+    lines.push(`  ${result.deployState.dir}`);
+    lines.push("  industream state diff    — drift vs the recorded desired state");
+    lines.push("  industream state log     — deployment history");
+    lines.push("  industream state snapshot — capture live Portainer-managed stacks");
+  }
   return lines;
 }
 

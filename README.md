@@ -67,6 +67,7 @@ industream status                                         # Verify premium modul
 | `industream` | Interactive menu (arrow keys + number keys) |
 | `industream install` | Full platform setup wizard |
 | `industream install --env dev` | Install a dev environment |
+| `industream install --with-portainer` | Also deploy the optional Portainer ops console (view + per-service management of the stack) |
 | `industream deploy` | Deploy (prompts for environment: prod/dev/staging) |
 | `industream deploy --env prod` | Deploy a specific environment |
 | `industream down` | Bring environment down (data is preserved) |
@@ -104,6 +105,54 @@ industream status                                         # Verify premium modul
 | `industream worker add ./my-worker/` | Install a custom worker from a directory |
 | `industream worker list` | List installed external workers |
 | `industream worker remove my-worker` | Remove an external worker |
+
+### Deployment State
+
+`industream state <subcommand>` maintains a versioned record of your deployments
+for audit, drift detection and rollback. Under the hood it wraps the platform
+script `unified/scripts/deploy-state.sh` and keeps a local `.deploy-state` git
+repository inside the platform directory. Every deployment is committed there with
+its **secrets scrubbed** — nothing secret is ever written to the repo.
+
+> Swarm-targeted: deploy-state tracks the Portainer-managed Swarm stacks.
+
+| Subcommand | Description |
+|------------|-------------|
+| `industream state init` | Initialize the `.deploy-state` git repository |
+| `industream state snapshot` | Capture the **live** Portainer-managed stacks as the current state |
+| `industream state render` | Record the **desired** state (rendered from the unified tree) |
+| `industream state diff` | Show drift between the live and desired state |
+| `industream state log` | Show the deployment history |
+
+| Option | Description |
+|--------|-------------|
+| `--env <environment>` | Environment to target (default: `prod`) |
+| `--edition <ce\|ee>` | Edition used when rendering the desired state |
+| `--baked` | Render with literal values instead of `${VARS}` placeholders |
+| `--path <path>` | Platform install path (default: `~/industream-platform`) |
+
+`industream state snapshot` talks to the Portainer API. It reads the
+`PORTAINER_API_KEY` (or `PORTAINER_PASSWORD`) environment variable, falling back
+to the credentials stored by `industream install` when neither is set. If no
+credentials are available the snapshot is skipped:
+
+| Env var | Description |
+|---------|-------------|
+| `PORTAINER_API_KEY` | Portainer API key used by `industream state snapshot` (preferred) |
+| `PORTAINER_PASSWORD` | Portainer admin password used as a fallback by `industream state snapshot` |
+
+```bash
+industream state init        # Create the .deploy-state repo (once)
+industream state snapshot    # Capture the live Portainer stacks
+industream state diff        # Compare live vs desired state
+industream state log         # Review the deployment history
+```
+
+> **Install integration:** `industream install` (Swarm) automatically records a
+> deploy-state baseline at the end of the wizard — a "Record deployment state"
+> step runs `deploy-state.sh init` + `render`, and the install summary points to
+> `industream state diff` / `industream state log`. It is best-effort (a failure
+> never fails the install) and skipped on compose (deploy-state is Swarm-only).
 
 ---
 

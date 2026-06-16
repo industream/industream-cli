@@ -312,6 +312,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
               { id: "secrets", label: "Create secrets", status: "pending" as const },
               { id: "render", label: "Render & deploy stack", status: "pending" as const },
               { id: "deploy", label: "Seed ConfigHub", status: "pending" as const },
+              { id: "state", label: "Record deployment state", status: "pending" as const },
             ]),
       ];
       reporter.setSteps(steps);
@@ -784,6 +785,38 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           domain,
         });
 
+        // Step 8 (swarm/unified only): record the deployment state in a versioned
+        // .deploy-state git repo. `init` creates the repo; `render` captures the
+        // DESIRED state just deployed (secrets scrubbed) as a baseline, so later
+        // `industream state diff` surfaces drift and `state log` is the deploy
+        // history. deploy-state.sh + the renderer are swarm-targeted, so we skip it
+        // on compose. Strictly BEST-EFFORT: a failure here never fails the install
+        // (the deploy already succeeded). The deploy.sh pre-deploy snapshot hook
+        // additionally captures live state BEFORE future redeploys overwrite it.
+        let deployStateDir: string | undefined;
+        if (runtimeName === "swarm" && (await unifiedTreeExists(platformDirectory))) {
+          enterStep("state", "setup", "Recording deployment state...");
+          const unified = unifiedDir(platformDirectory);
+          const stateScript = join(unified, "scripts", "deploy-state.sh");
+          const edition = plan === "community" ? "ce" : "ee";
+          try {
+            await runScript(stateScript, ["init"], unified, (l) => progress(l), (l) => logLine(l));
+            await runScript(
+              stateScript,
+              ["render", "--env", environment, "--edition", edition],
+              unified,
+              (l) => progress(l),
+              (l) => logLine(l),
+            );
+            deployStateDir = join(resolved, ".deploy-state");
+            finishStep("state");
+          } catch (stateErr) {
+            const m = stateErr instanceof Error ? stateErr.message : String(stateErr);
+            logLine(`deploy-state recording skipped (non-fatal): ${m}`);
+            finishStep("state", "skipped");
+          }
+        }
+
         const prefix = environment === "prod" ? "" : `${environment}.`;
         // Surface the generated admin credentials ONCE — create-secrets persists
         // every secret value to <platformDir>/secrets/<env>/ (chmod 700), but the
@@ -848,6 +881,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           credentials,
           secretsDir,
           ...(selfSigned ? { tls: { selfSigned: true, caPath }, hostsBlock } : {}),
+          ...(deployStateDir ? { deployState: { dir: deployStateDir } } : {}),
         });
         setStep("done");
         setProgressLine("");

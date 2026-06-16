@@ -34,6 +34,8 @@ export interface DeployResultInfo {
   tls?: { selfSigned: boolean; caPath?: string };
   /** /etc/hosts block to add on the operator workstation (self-signed/local domain). */
   hostsBlock?: string;
+  /** Versioned deploy-state git repo (desired baseline recorded at install). */
+  deployState?: { dir: string };
 }
 
 export interface DeploySnapshot {
