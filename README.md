@@ -79,7 +79,7 @@ industream status                                         # Verify premium modul
 | Command | Description |
 |---------|-------------|
 | `industream status` | Live service dashboard with categories, uptime, versions |
-| `industream update` | Check for available updates (compares deployed vs latest) |
+| `industream update` | Pull the latest platform release and compare deployed vs available versions (see [Upgrading](#upgrading-to-a-new-version)) |
 | `industream logs flowmaker-scheduler` | View logs for a specific service |
 | `industream logs -f flowmaker-scheduler` | Follow logs in real-time |
 | `industream logs` | List all available services |
@@ -208,6 +208,56 @@ industream deploy                           # Redeploy to include the new worker
 External workers are automatically included in all subsequent deployments.
 
 See `examples/simple-worker/` for a minimal example.
+
+---
+
+## Upgrading to a new version
+
+Upgrading is a **two-step flow**: fetch + review what changed, then apply it.
+
+### 1. Fetch & review — `industream update`
+
+```bash
+industream update
+```
+
+This does two things:
+
+1. **Pulls the latest platform release** into your install directory (a `git pull`
+   of the platform tree, which carries the new image tags in `versions.env`).
+2. **Compares** the versions currently **deployed** against the ones now
+   **available**, and prints a per-category table:
+
+   ```
+   ── Core (1 update) ──
+     industream-hub-backend   2.1.2        2.1.3        ⬆ update
+     industream-hub-frontend  2.1.4        2.1.4        ✓ latest
+   ...
+   N updates available — run industream deploy to apply
+   ```
+
+   `⬆ update` = a newer version is available; `✓ latest` = already current.
+   `industream update` is **read-only for the running platform** — it pulls the
+   repo and reports, but it does **not** change any running service.
+
+### 2. Apply — `industream deploy`
+
+```bash
+industream deploy --env prod
+```
+
+`deploy` re-renders the stack with the pulled versions and rolls the services
+(Swarm does a rolling update; data volumes and secrets are preserved). Run it for
+each environment you want to move to the new version. After it completes, run
+`industream update` again — every row should read `✓ latest`.
+
+> **Premium modules / license:** the available versions come from the module
+> registry; modules you are not entitled to are not pulled. Run
+> `industream license` if a premium image is unexpectedly missing.
+
+> **Custom & external workers:** your `industream worker add` workers are kept
+> across upgrades and re-deployed automatically (see
+> [External Workers](#external-workers)).
 
 ---
 
