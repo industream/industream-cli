@@ -12,6 +12,14 @@ import { loadEnvFile } from "./swarm-repo.js";
 export type RuntimeName = "swarm" | "compose";
 export type Edition = "ce" | "ee";
 
+/**
+ * Full EE group set. Mirrors install.tsx's EE baseGroups. Used as the deploy-time
+ * fallback when no GROUPS is persisted, so EE redeploys never drop premium boxes.
+ * (Excludes the optional `portainer` group — opt in via persisted GROUPS.)
+ */
+const EE_DEFAULT_GROUPS =
+  "core flowmaker datacatalog workers workers-premium data monitoring timescale";
+
 export interface UnifiedDeployParams {
   runtime: RuntimeName;
   edition: Edition;
@@ -83,7 +91,16 @@ export async function resolveParamsFromEnv(
   const edition: Edition =
     overrides.edition ?? (vars.EDITION?.trim().toLowerCase() === "ee" ? "ee" : "ce");
   const bundle = overrides.bundle ?? (vars.BUNDLE?.trim() || undefined);
-  const groups = overrides.groups || undefined;
+  // Resolve the group set so a plain `industream deploy` keeps premium boxes:
+  //  1. explicit CLI --groups, else
+  //  2. the GROUPS persisted at install time, else
+  //  3. for EE, the full EE default set (covers installs done before GROUPS was
+  //     persisted — otherwise deploy.sh's CE default silently drops
+  //     workers-premium/timescale). CE keeps deploy.sh's own default (undefined).
+  const groups =
+    overrides.groups ||
+    vars.GROUPS?.trim() ||
+    (edition === "ee" ? EE_DEFAULT_GROUPS : undefined);
   return { runtime, edition, env, bundle, groups };
 }
 
