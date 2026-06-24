@@ -666,6 +666,13 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
               : "core flowmaker datacatalog workers data monitoring";
             const groupSet = withPortainer ? `${baseGroups} portainer` : baseGroups;
             const groupArgs = ee || withPortainer ? ["--groups", groupSet] : [];
+            // Persist the selected groups so `industream deploy` reuses them.
+            // Without this, deploy falls back to deploy.sh's CE default group set
+            // (no workers-premium / timescale / portainer) and silently drops the
+            // premium worker boxes on every redeploy.
+            if (groupArgs.length > 0) {
+              await updateEnvValue(platformDirectory, "GROUPS", groupSet);
+            }
             // Worker allowlist: the selector picks community workers; in EE the
             // premium workers are always appended so the workers-premium group is
             // not filtered away. A null selection (headless) deploys everything.
