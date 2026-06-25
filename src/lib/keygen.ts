@@ -180,6 +180,21 @@ export async function fetchLicenseEntitlements(
 
 
 /**
+ * Keygen validation codes that mean "this machine is not registered yet, but
+ * the license may still have room — register it and re-validate".
+ * TOO_MANY_MACHINES is deliberately excluded: the limit is genuinely reached.
+ */
+const MACHINE_REGISTRATION_CODES = new Set([
+  "NO_MACHINE",
+  "NO_MACHINES",
+  "FINGERPRINT_SCOPE_MISMATCH",
+]);
+
+function needsMachineRegistration(code: string): boolean {
+  return MACHINE_REGISTRATION_CODES.has(code);
+}
+
+/**
  * Activate a license: validate it online and cache the result locally.
  * Automatically registers the current machine if the license requires it.
  */
@@ -187,10 +202,13 @@ export async function activateLicense(key: string): Promise<KeygenValidationResp
   const fingerprint = getMachineFingerprint();
   let response = await validateKeyOnline(key, fingerprint);
 
-  // License needs a machine registration — do it, then re-validate
-  const needsMachine =
-    response.meta.code === "NO_MACHINE" || response.meta.code === "NO_MACHINES";
-  if (needsMachine && response.data) {
+  // License needs this machine registered — do it, then re-validate.
+  //   NO_MACHINE / NO_MACHINES  → license has zero machines yet.
+  //   FINGERPRINT_SCOPE_MISMATCH → license already has machine(s) but not this
+  //     fingerprint; this is the code a *floating* license returns for every
+  //     new machine after the first. Without it, only the first VM ever
+  //     registers and all subsequent ones fail despite free floating seats.
+  if (needsMachineRegistration(response.meta.code) && response.data) {
     const activationResult = await activateMachine(
       key,
       response.data.id,

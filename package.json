@@ -1,6 +1,6 @@
 {
   "name": "@industream/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Industream Platform CLI — install, manage and monitor",
   "main": "dist/index.mjs",
   "bin": {
