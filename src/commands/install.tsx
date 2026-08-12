@@ -374,7 +374,14 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           // `git pull --ff-only`: the deploy writes runtime artefacts into tracked
           // files (bundle .env.*, generated htpasswd), so a plain ff-only pull
           // aborts with "local changes would be overwritten" on every reinstall.
-          await pullSwarmRepo(platformDirectory);
+          // Surface the outcome: the updater refuses to hard-reset a tree parked
+          // on a feature branch (it would delete the group files that branch adds,
+          // and the next --prune deploy would then remove the matching services).
+          const pullOutcome = await pullSwarmRepo(platformDirectory);
+          if (pullOutcome.startsWith("⚠")) {
+            status(pullOutcome);
+            logLine(pullOutcome);
+          }
         } else {
           await cloneSwarmRepo(platformDirectory, (line) => { progress(line); logLine(line); });
         }
