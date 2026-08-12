@@ -36,7 +36,17 @@ describe("resolveParamsFromEnv", () => {
 
   it("CLI overrides win and apply over the (missing) .env defaults", async () => {
     const p = await resolveParamsFromEnv(NO_ENV, "dev", { runtime: "compose", edition: "ee", bundle: "1.0.1" });
-    expect(p).toEqual({ runtime: "compose", edition: "ee", env: "dev", bundle: "1.0.1", groups: undefined });
+    // EE with no persisted GROUPS falls back to the full EE set so a redeploy
+    // never silently drops workers-premium/timescale (see EE_DEFAULT_GROUPS).
+    expect(p).toEqual({
+      runtime: "compose", edition: "ee", env: "dev", bundle: "1.0.1",
+      groups: "core flowmaker datacatalog workers workers-premium data monitoring timescale",
+    });
+  });
+
+  it("CE without a persisted GROUPS keeps deploy.sh's own default", async () => {
+    const p = await resolveParamsFromEnv(NO_ENV, "dev", { runtime: "compose", edition: "ce" });
+    expect(p.groups).toBeUndefined();
   });
 
   it("defaults to swarm/ce when no .env and no overrides", async () => {

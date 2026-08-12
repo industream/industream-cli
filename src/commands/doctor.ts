@@ -11,6 +11,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { loadConfig } from "../lib/config.js";
 import { COMMUNITY_REGISTRY, ENTERPRISE_REGISTRY } from "../lib/registry-login.js";
+import { listBundles, resolveBundle, DEFAULT_BUNDLE_VERSION } from "../lib/bundles.js";
 
 type Runtime = "swarm" | "compose";
 type Edition = "ce" | "ee";
@@ -108,12 +109,21 @@ async function commonChecks(unified: string, runtime: Runtime, env: string): Pro
   const deploy = join(unified, "scripts/deploy.sh");
   checks.push({ name: "unified tree", status: (await pathType(deploy)) === "file" ? "pass" : "fail", detail: deploy });
 
-  const bundles = await sh("bash", ["-lc", `ls -d ${unified}/releases/bundle-platform-*/ 2>/dev/null`]);
-  const hasBundle = bundles.ok && bundles.out.length > 0;
-  checks.push({ name: "release bundle", status: hasBundle ? "pass" : "fail",
-    detail: hasBundle ? bundles.out.split("\n")[0] : "no releases/bundle-platform-* — run render-bundles.sh",
-    fixLabel: "render bundle", fix: hasBundle ? undefined
-      : async () => { await execa("bash", [join(unified, "scripts/render-bundles.sh")], { stdio: "inherit" }); } });
+  // Several bundles is NOT "ok": deploy.sh only auto-selects when there is
+  // exactly one and otherwise aborts. Surface it here (warn + the exact flag)
+  // rather than letting the deploy die halfway through.
+  const bundles = await listBundles(unified);
+  const versions = bundles.map((b) => b.version);
+  checks.push({ name: "release bundle",
+    status: bundles.length === 1 ? "pass" : bundles.length === 0 ? "fail" : "warn",
+    detail: bundles.length === 1 ? versions[0]
+      : bundles.length === 0 ? "no releases/bundle-platform-* — run render-bundles.sh"
+      : `${bundles.length} bundles (${versions.join(", ")}) — deploy needs --bundle <version>`,
+    fixLabel: "render bundle", fix: bundles.length > 0 ? undefined
+      : async () => {
+          await execa("bash", [join(unified, "scripts/render-bundles.sh"), DEFAULT_BUNDLE_VERSION],
+            { stdio: "inherit" });
+        } });
 
   for (const f of ["registries.env", "versions.env", "auth.env", `runtime.${runtime}.env`])
     checks.push({ name: `env: ${f}`, status: (await pathType(join(unified, f))) === "file" ? "pass" : "fail", detail: f });
@@ -261,7 +271,11 @@ export async function runDoctor(options: DoctorOptions): Promise<void> {
 
   if (blocking.length === 0) {
     const target = runtime === "swarm" ? `--stack industream-${env}` : `--project ${env}`;
-    console.log(`\n  ✅ READY. Run:\n     cd ${unified} && ./scripts/deploy.sh --runtime ${runtime} --edition ${edition} --env ${env} ${target}\n`);
+    // Spell out --bundle when the tree holds several: a copy-pasted command
+    // without it is exactly the deploy.sh abort this check warns about.
+    const resolution = resolveBundle(await listBundles(unified));
+    const bundleFlag = resolution.ok ? "" : ` --bundle <${resolution.available[0].version}|…>`;
+    console.log(`\n  ✅ READY. Run:\n     cd ${unified} && ./scripts/deploy.sh --runtime ${runtime} --edition ${edition} --env ${env} ${target}${bundleFlag}\n`);
   } else {
     console.log(`\n  ✗ ${blocking.length} blocking issue(s).${options.fix ? "" : " Re-run with --fix to provision."}\n`);
     process.exitCode = 1;

@@ -100,6 +100,30 @@ async function hardResetToRemote(resolved: string): Promise<string> {
   return stdout;
 }
 
+export interface TreeUpdatePlan {
+  action: "reset" | "skip";
+  /** Default branch name when resetting; the human-readable cause when skipping. */
+  reason: string;
+}
+
+/**
+ * Decide whether the platform tree may be hard-reset to the remote default.
+ *
+ * hardResetToRemote targets `origin/HEAD` whatever is checked out, so a tree
+ * parked on a feature branch silently loses everything that branch adds — the
+ * group files it defines included, after which the next `--prune` deploy removes
+ * the matching services. Only reset when the checkout IS the default branch.
+ */
+export function planTreeUpdate(currentBranch: string, defaultRef: string): TreeUpdatePlan {
+  const branch = currentBranch.trim();
+  const dflt = defaultRef.trim().replace(/^origin\//, "");
+  if (branch === "HEAD" || branch.length === 0)
+    return { action: "skip", reason: "detached HEAD (no branch to update)" };
+  if (branch !== dflt)
+    return { action: "skip", reason: `on branch '${branch}', not the default '${dflt}'` };
+  return { action: "reset", reason: dflt };
+}
+
 /** Clone (or update) the compose deployment tree as a sibling of the platform. */
 export async function ensureComposeTree(
   onProgress?: (line: string) => void,
@@ -114,8 +138,22 @@ export async function ensureComposeTree(
   await gitClone(COMPOSE_REPO_URL, resolved, onProgress);
 }
 
+/**
+ * Update the platform tree, unless doing so would discard a branch checkout.
+ * Returns the git output, or the reason the update was skipped.
+ */
 export async function pullSwarmRepo(platformDir: string): Promise<string> {
-  return hardResetToRemote(resolvePlatformDir(platformDir));
+  const resolved = resolvePlatformDir(platformDir);
+  const branch = await execa("git", ["-C", resolved, "rev-parse", "--abbrev-ref", "HEAD"])
+    .then((r) => r.stdout.trim())
+    .catch(() => "");
+  const defaultRef = await execa("git", ["-C", resolved, "rev-parse", "--abbrev-ref", "origin/HEAD"])
+    .then((r) => r.stdout.trim())
+    .catch(() => "origin/main");
+  const plan = planTreeUpdate(branch, defaultRef);
+  if (plan.action === "skip")
+    return `⚠ platform tree left untouched: ${plan.reason}. Checkout the default branch to update it.`;
+  return hardResetToRemote(resolved);
 }
 
 export async function loadEnvFile(platformDir: string): Promise<Record<string, string>> {
