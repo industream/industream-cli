@@ -166,8 +166,19 @@ program
     "--with-portainer",
     "Also deploy a Portainer ops console (view + per-service management of the stack)",
   )
+  // Needed whenever releases/ holds more than one bundle (a Forge download, an
+  // older render): deploy.sh refuses to guess. Omit it and the wizard either
+  // resolves the only candidate or asks which one to deploy.
+  .option("--bundle <version>", "Release bundle version to deploy (default: the one in releases/)")
   .action((options) => {
-    runInstall(options.env, options.domain, options.tls, options.runtime, options.withPortainer);
+    runInstall(
+      options.env,
+      options.domain,
+      options.tls,
+      options.runtime,
+      options.withPortainer,
+      options.bundle,
+    );
   });
 
 program

@@ -8,6 +8,7 @@ import { DeployReporter } from "../lib/deploy-reporter.js";
 import type { DeployStep } from "../lib/deploy-reporter.js";
 import { InstallConfigPrompt } from "../components/InstallConfigPrompt.js";
 import { WorkerSelector } from "../components/WorkerSelector.js";
+import { BundleSelector } from "../components/BundleSelector.js";
 import { saveConfig } from "../lib/config.js";
 import { isDockerAvailable, isSwarmActive, getSwarmServices } from "../lib/docker.js";
 import {
@@ -29,6 +30,8 @@ import { execa } from "execa";
 import { join } from "node:path";
 import { copyFile, access, writeFile, mkdir, readFile } from "node:fs/promises";
 import { unifiedTreeExists, unifiedDir } from "../lib/unified-deploy.js";
+import { listBundles, resolveBundle } from "../lib/bundles.js";
+import type { BundleInfo } from "../lib/bundles.js";
 import { createInterface } from "node:readline";
 
 type Step =
@@ -153,7 +156,7 @@ async function ensureArgon2(log: (line: string) => void): Promise<void> {
   log("✓ python3-argon2 available");
 }
 
-function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, runtime: cliRuntime, withPortainer = false }: { environment?: string; domain?: string; tls?: string; runtime?: string; withPortainer?: boolean }): React.ReactElement {
+function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, runtime: cliRuntime, withPortainer = false, bundle: cliBundle }: { environment?: string; domain?: string; tls?: string; runtime?: string; withPortainer?: boolean; bundle?: string }): React.ReactElement {
   const { exit } = useApp();
   const [introDone, setIntroDone] = useState(false);
   const [step, setStep] = useState<Step>("prerequisites");
@@ -207,6 +210,14 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
   const [workersChosen, setWorkersChosen] = useState<boolean>(!needsPrompt);
   const [selectedWorkers, setSelectedWorkers] = useState<string[] | null>(null);
 
+  // Release bundle. Only ambiguous on a REINSTALL (a fresh clone ships exactly
+  // one), so the picker is offered up-front, before the install effect starts:
+  // an already-present tree is the only way releases/ can hold several bundles.
+  // `null` selection ⇒ let resolveBundle decide after the clone.
+  const [bundleChosen, setBundleChosen] = useState<boolean>(!needsPrompt || cliBundle !== undefined);
+  const [selectedBundle, setSelectedBundle] = useState<string | null>(cliBundle ?? null);
+  const [bundleChoices, setBundleChoices] = useState<BundleInfo[]>([]);
+
   // The 4-pane DeployDashboard owns the screen during execution when we have a
   // TTY. In CI / non-TTY we fall back to the plain InstallSteps + status lines
   // (Ink still renders, but the dashboard panes are noise without a terminal).
@@ -220,6 +231,22 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
   useEffect(() => {
     if (configDone && runtimeName !== "swarm") setWorkersChosen(true);
   }, [configDone, runtimeName]);
+
+  // Offer the bundle picker only when the choice is genuinely ambiguous: the
+  // compose path never sources a bundle, and 0 or 1 bundle resolves on its own.
+  useEffect(() => {
+    if (!workersChosen || bundleChosen) return;
+    if (runtimeName !== "swarm") {
+      setBundleChosen(true);
+      return;
+    }
+    listBundles(unifiedDir(platformDirectory))
+      .then((bundles) => {
+        if (bundles.length > 1) setBundleChoices(bundles);
+        else setBundleChosen(true);
+      })
+      .catch(() => setBundleChosen(true));
+  }, [workersChosen, bundleChosen, runtimeName]);
 
   // Load cached license info once for the interactive menu
   useEffect(() => {
@@ -260,7 +287,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
   }
 
   useEffect(() => {
-    if (!introDone || !configDone || !workersChosen) return;
+    if (!introDone || !configDone || !workersChosen || !bundleChosen) return;
     async function runInstall() {
       // ---- Progress sinks: update both the reporter (4-pane dashboard) and
       // the legacy InstallSteps state (plain non-TTY fallback). The reporter is
@@ -602,16 +629,31 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
               join(baseCerts, `${domain}.${ext}`),
             ).catch(() => {});
           }
-          status("Rendering release bundle...");
-          // Bundle version label is cosmetic — images resolve from versions.env;
-          // deploy.sh auto-selects the single rendered bundle.
-          await runScript(
-            join(unified, "scripts/render-bundles.sh"),
-            ["1.0.1"],
-            unified,
-            (line) => progress(line),
-            (line) => logLine(line),
+          // Resolve WHICH bundle before touching releases/. Rendering a hardcoded
+          // version next to an existing one (a shipped render of another version,
+          // a Forge download) left two bundles behind and deploy.sh aborted with
+          // "multiple bundles in releases/ — pass --bundle", a flag install did
+          // not expose. Now: reuse the one that is there, render only when needed,
+          // and always pass --bundle explicitly instead of relying on auto-select.
+          const resolution = resolveBundle(
+            await listBundles(unified),
+            selectedBundle ?? undefined,
           );
+          if (!resolution.ok) throw new Error(resolution.error);
+          if (resolution.render) {
+            status(`Rendering release bundle ${resolution.render}...`);
+            await runScript(
+              join(unified, "scripts/render-bundles.sh"),
+              [resolution.render],
+              unified,
+              (line) => progress(line),
+              (line) => logLine(line),
+            );
+          } else {
+            status(`Using release bundle ${resolution.version}...`);
+          }
+          const bundleVersion = resolution.version;
+          logLine(`▶ release bundle: ${bundleVersion}`);
           // Site env consumed by deploy.sh (.env.<env>): domain/TLS + the
           // env-agnostic config defaults the base/*.yml expect.
           const hubOrigin = `https://${domain}`;
@@ -673,6 +715,11 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
             if (groupArgs.length > 0) {
               await updateEnvValue(platformDirectory, "GROUPS", groupSet);
             }
+            // Same reasoning for the bundle: `industream deploy` reads BUNDLE from
+            // .env (resolveParamsFromEnv), so persisting it keeps every redeploy on
+            // the bundle the install actually deployed — instead of falling back to
+            // deploy.sh's auto-select, which breaks the day a second bundle lands.
+            await updateEnvValue(platformDirectory, "BUNDLE", bundleVersion);
             // Worker allowlist: the selector picks community workers; in EE the
             // premium workers are always appended so the workers-premium group is
             // not filtered away. A null selection (headless) deploys everything.
@@ -690,6 +737,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
               [
                 "--runtime", "swarm", "--edition", ee ? "ee" : "ce",
                 "--env", environment, "--stack", stackName,
+                "--bundle", bundleVersion,
                 ...groupArgs,
                 ...workerArgs,
               ],
@@ -902,7 +950,7 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
       }
     }
     runInstall();
-  }, [introDone, configDone, workersChosen]);
+  }, [introDone, configDone, workersChosen, bundleChosen]);
 
   // When done, Enter/q exits and launches status. We deliberately do NOT exit on
   // arrow / PgUp / PgDn / g / G so those keys stay free to scroll the Log pane's
@@ -963,6 +1011,22 @@ function InstallWizard({ environment = "prod", domain: cliDomain, tls: cliTls, r
           onComplete={(services) => {
             setSelectedWorkers(services);
             setWorkersChosen(true);
+          }}
+        />
+      </Box>
+    );
+  }
+
+  // Release bundle selection (swarm only, and only when releases/ holds several).
+  if (!bundleChosen && bundleChoices.length > 1) {
+    return (
+      <Box flexDirection="column">
+        <Banner />
+        <BundleSelector
+          bundles={bundleChoices}
+          onComplete={(version) => {
+            setSelectedBundle(version);
+            setBundleChosen(true);
           }}
         />
       </Box>
@@ -1059,6 +1123,7 @@ export async function runInstall(
   tls?: string,
   runtime?: string,
   withPortainer?: boolean,
+  bundle?: string,
 ): Promise<void> {
   const alreadyInstalled = await isPlatformInstalled("~/industream-platform");
   if (alreadyInstalled) {
@@ -1075,6 +1140,7 @@ export async function runInstall(
       tls={tls}
       runtime={runtime}
       withPortainer={withPortainer ?? false}
+      bundle={bundle}
     />,
   );
 }
