@@ -41,7 +41,7 @@
       "status": "ready",
       "serviceName": "grafana",
       "stackFile": "docker-stack.monitoring.yml",
-      "imagePattern": "grafana/grafana-industream",
+      "imagePattern": "grafana/grafana-oss",
       "subcategory": "Tools"
     },
     {
