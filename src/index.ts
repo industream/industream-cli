@@ -65,6 +65,7 @@ program
   .option("--edition <edition>", "Unified path: override edition (ce|ee) — default from .env")
   .option("--bundle <version>", "Unified path: release bundle version (auto-selected if only one)")
   .option("--groups <groups>", "Unified path: group footprint, e.g. \"core data monitoring\"")
+  .option("--airgap", "Unified path: air-gapped site, images preloaded (default from .env AIRGAP)")
   .option("--with-demo", "Include demo simulators (Swarm)")
   .option("--with-workers", "Bring up workers alongside core services (Compose)")
   .option("--with-uimaker", "Bring up UIMaker alongside core services (Compose)")
@@ -79,6 +80,7 @@ program
       edition: options.edition,
       bundle: options.bundle,
       groups: options.groups,
+      airgap: options.airgap,
       withDemo: options.withDemo,
       withWorkers: options.withWorkers,
       withUimaker: options.withUimaker,
