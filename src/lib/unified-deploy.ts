@@ -28,6 +28,8 @@ export interface UnifiedDeployParams {
   bundle?: string;
   /** Optional group footprint (e.g. "core data monitoring"). */
   groups?: string;
+  /** Air-gapped site: deploy.sh skips the pre-pull and strips registry digests. */
+  airgap?: boolean;
 }
 
 function expandTilde(p: string): string {
@@ -57,6 +59,7 @@ export function buildDeployArgs(params: UnifiedDeployParams): string[] {
   const args = ["--runtime", params.runtime, "--edition", params.edition, "--env", params.env];
   if (params.bundle) args.push("--bundle", params.bundle);
   if (params.groups) args.push("--groups", params.groups);
+  if (params.airgap) args.push("--airgap");
   if (params.runtime === "swarm") args.push("--stack", `industream-${params.env}`);
   else args.push("--project", params.env);
   return args;
@@ -68,11 +71,14 @@ export interface DeployOverrides {
   edition?: Edition;
   bundle?: string;
   groups?: string;
+  airgap?: boolean;
 }
 
+const TRUTHY = new Set(["true", "1", "yes"]);
+
 /**
- * Resolve {runtime, edition, bundle, groups} for a deploy. Precedence:
- * CLI override > platform `.env` (RUNTIME/EDITION/BUNDLE) > defaults (swarm/ce).
+ * Resolve {runtime, edition, bundle, groups, airgap} for a deploy. Precedence:
+ * CLI override > platform `.env` (RUNTIME/EDITION/BUNDLE/AIRGAP) > defaults (swarm/ce).
  * BUNDLE stays optional (deploy.sh auto-selects the only bundle when omitted).
  */
 export async function resolveParamsFromEnv(
@@ -101,7 +107,9 @@ export async function resolveParamsFromEnv(
     overrides.groups ||
     vars.GROUPS?.trim() ||
     (edition === "ee" ? EE_DEFAULT_GROUPS : undefined);
-  return { runtime, edition, env, bundle, groups };
+  const airgap =
+    overrides.airgap ?? TRUTHY.has(vars.AIRGAP?.trim().toLowerCase() ?? "");
+  return { runtime, edition, env, bundle, groups, airgap };
 }
 
 /** Run the unified assembler for the given params (plain stdio passthrough). */

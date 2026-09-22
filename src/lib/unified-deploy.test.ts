@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { buildDeployArgs, unifiedDir, resolveParamsFromEnv } from "./unified-deploy.js";
 
 describe("buildDeployArgs", () => {
@@ -15,6 +18,15 @@ describe("buildDeployArgs", () => {
       "--runtime", "compose", "--edition", "ee", "--env", "dev",
       "--bundle", "1.0.1", "--groups", "core data", "--project", "dev",
     ]);
+  });
+
+  it("airgap → appends --airgap so deploy.sh skips the pre-pull and strips digests", () => {
+    const args = buildDeployArgs({ runtime: "swarm", edition: "ee", env: "prod", airgap: true });
+    expect(args).toContain("--airgap");
+  });
+
+  it("omits --airgap when not requested", () => {
+    expect(buildDeployArgs({ runtime: "swarm", edition: "ee", env: "prod" })).not.toContain("--airgap");
   });
 
   it("omits --bundle/--groups when absent", () => {
@@ -41,12 +53,28 @@ describe("resolveParamsFromEnv", () => {
     expect(p).toEqual({
       runtime: "compose", edition: "ee", env: "dev", bundle: "1.0.1",
       groups: "core flowmaker datacatalog workers workers-premium data monitoring timescale",
+      airgap: false,
     });
   });
 
   it("CE without a persisted GROUPS keeps deploy.sh's own default", async () => {
     const p = await resolveParamsFromEnv(NO_ENV, "dev", { runtime: "compose", edition: "ce" });
     expect(p.groups).toBeUndefined();
+  });
+
+  it("--airgap override applies without a .env", async () => {
+    const p = await resolveParamsFromEnv(NO_ENV, "prod", { airgap: true });
+    expect(p.airgap).toBe(true);
+  });
+
+  it("reads AIRGAP=true from the platform .env and lets the flag win", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cli-airgap-"));
+    await writeFile(join(dir, ".env"), "RUNTIME=swarm\nEDITION=ee\nBUNDLE=1.0.1\nAIRGAP=true\n");
+    const fromEnv = await resolveParamsFromEnv(dir, "prod");
+    expect(fromEnv.airgap).toBe(true);
+    expect(fromEnv.bundle).toBe("1.0.1");
+    const forcedOff = await resolveParamsFromEnv(dir, "prod", { airgap: false });
+    expect(forcedOff.airgap).toBe(false);
   });
 
   it("defaults to swarm/ce when no .env and no overrides", async () => {

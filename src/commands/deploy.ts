@@ -18,6 +18,7 @@ export interface DeployCliOverrides {
   edition?: string;
   bundle?: string;
   groups?: string;
+  airgap?: boolean;
 }
 
 export async function runDeploy(
@@ -36,6 +37,7 @@ export async function runDeploy(
       edition: options?.edition === "ee" ? "ee" : options?.edition === "ce" ? "ce" : undefined,
       bundle: options?.bundle,
       groups: options?.groups,
+      airgap: options?.airgap,
     });
     await runUnifiedDeploy(config.platformDir, params);
     return;
