@@ -98,6 +98,22 @@ industream status                                         # Verify premium modul
 | `industream secrets` | List Docker secrets for current environment |
 | `industream secrets --regenerate` | Regenerate all secrets |
 
+#### Worker → DataCatalog auth (`FM_DATACATALOG_API_KEY`)
+
+DataCatalog-api uses dual-port auth (`:8002` Hub JWT for the UI / `:8003` `X-Api-Key`
+for services). The flow-box workers have no Hub session, so they authenticate to the
+**backend port `:8003`** with the static API key. The key is generated as a mounted
+secret (`datacatalog_api_key`), but the workers read it as the **`FM_DATACATALOG_API_KEY`
+env var** — so on **swarm deploy** the CLI reads the secret value off disk
+(`secrets/<env>/datacatalog_api_key`, legacy `secrets/<name>` fallback) and injects it
+into the worker stack env for `docker stack deploy` substitution. No action needed; the
+workers' `FM_DATACATALOG_URL` defaults to `http://datacatalog-api:8003` in the stack.
+A missing key → empty value → no header sent (an un-authenticated DataCatalog still works).
+
+> **Demo escape hatch:** deploying `datacatalog/api:api-v1.9.4` with
+> `Authentication__Disabled=true` makes DataCatalog anonymous on both ports — workers
+> then work with or without the key. OFF by default; demo environments only.
+
 ### External Workers
 
 | Command | Description |
