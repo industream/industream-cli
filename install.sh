@@ -99,8 +99,8 @@ else
   echo -e "  ${GREEN}✓${NC} Git installed"
 fi
 
-# Install bc/jq if missing (needed by deploy scripts)
-for tool in bc jq; do
+# Install bc/jq/unzip if missing (deploy scripts; unzip imports Forge bundles)
+for tool in bc jq unzip; do
   if ! command -v "$tool" &> /dev/null; then
     case "$PKG_MANAGER" in
       apt) sudo apt-get install -y -qq "$tool" ;;
