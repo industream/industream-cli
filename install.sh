@@ -73,6 +73,8 @@ detect_package_manager() {
     echo "dnf"
   elif command -v yum &> /dev/null; then
     echo "yum"
+  elif command -v zypper &> /dev/null; then
+    echo "zypper"
   else
     echo "unknown"
   fi
@@ -91,6 +93,7 @@ else
     apt) sudo apt-get update -qq && sudo apt-get install -y -qq git bc jq ;;
     dnf) sudo dnf install -y -q git bc jq ;;
     yum) sudo yum install -y -q git bc jq ;;
+    zypper) sudo zypper -n -q install git-core bc jq ;;
     *) echo -e "${RED}Cannot install Git automatically. Install it manually.${NC}"; exit 1 ;;
   esac
   echo -e "  ${GREEN}✓${NC} Git installed"
@@ -102,6 +105,7 @@ for tool in bc jq; do
     case "$PKG_MANAGER" in
       apt) sudo apt-get install -y -qq "$tool" ;;
       dnf|yum) sudo "$PKG_MANAGER" install -y -q "$tool" ;;
+      zypper) sudo zypper -n -q install "$tool" ;;
     esac
   fi
 done
@@ -115,6 +119,7 @@ if ! python3 -c 'import argon2' &> /dev/null; then
   case "$PKG_MANAGER" in
     apt) sudo apt-get install -y -qq python3-argon2 ;;
     dnf|yum) sudo "$PKG_MANAGER" install -y -q python3-argon2-cffi ;;
+    zypper) sudo zypper -n -q install python3-argon2-cffi ;;
   esac
 fi
 
@@ -135,7 +140,12 @@ else
     exec sg docker -c "bash $INDUSTREAM_INSTALLER_SELF"
   fi
   echo -e "  ${YELLOW}Installing Docker...${NC}"
-  curl -fsSL https://get.docker.com | sh
+  # get.docker.com does not support openSUSE/SLES; use the distro packages.
+  if [ "$PKG_MANAGER" = "zypper" ]; then
+    sudo zypper -n -q install docker docker-compose
+  else
+    curl -fsSL https://get.docker.com | sh
+  fi
   sudo systemctl enable --now docker
   sudo usermod -aG docker "$USER"
   echo -e "  ${GREEN}✓${NC} Docker installed"
@@ -178,16 +188,21 @@ if command -v node &> /dev/null; then
     echo -e "  ${GREEN}✓${NC} Node.js $(node -v)"
   else
     echo -e "  ${YELLOW}Node.js $(node -v) found, upgrading to 22...${NC}"
-    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-    sudo "$PKG_MANAGER" install -y nodejs
+    if [ "$PKG_MANAGER" = "zypper" ]; then
+      sudo zypper -n -q install nodejs22 npm22
+    else
+      curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+      sudo "$PKG_MANAGER" install -y nodejs
+    fi
     echo -e "  ${GREEN}✓${NC} Node.js $(node -v)"
   fi
 else
   echo -e "  ${YELLOW}Installing Node.js 22...${NC}"
-  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+  [ "$PKG_MANAGER" = "zypper" ] || curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
   case "$PKG_MANAGER" in
     apt) sudo apt-get install -y -qq nodejs ;;
     dnf|yum) sudo "$PKG_MANAGER" install -y -q nodejs ;;
+    zypper) sudo zypper -n -q install nodejs22 npm22 ;;
     *) echo -e "${RED}Cannot install Node.js automatically.${NC}"; exit 1 ;;
   esac
   echo -e "  ${GREEN}✓${NC} Node.js $(node -v)"
